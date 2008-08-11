@@ -1,29 +1,41 @@
+/* This file is part of the indirect Perl module.
+ * See http://search.cpan.org/dist/indirect/ */
+
 #define PERL_NO_GET_CONTEXT
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
 
+#ifndef SvPV_const
+# define SvPV_const SvPV
+#endif
+
+#ifndef SvPV_nolen_const
+# define SvPV_nolen_const SvPV_nolen
+#endif
+
 #ifndef SvPVX_const
 # define SvPVX_const SvPVX
 #endif
 
-STATIC U32 indirect_initialized = 0;
+/* ... Hints ............................................................... */
+
 STATIC U32 indirect_hash = 0;
 
-STATIC const char indirect_msg[] = "Indirect call of method \"%s\" on object \"%s\"";
-
-STATIC HV *indirect_map = NULL;
-STATIC const char *indirect_linestr = NULL;
-
-STATIC UV indirect_hint(pTHX) {
+STATIC IV indirect_hint(pTHX) {
 #define indirect_hint() indirect_hint(aTHX)
  SV *id = Perl_refcounted_he_fetch(aTHX_ PL_curcop->cop_hints_hash,
                                          NULL,
                                          "indirect", 8,
                                          0,
                                          indirect_hash);
- return SvOK(id) ? SvUV(id) : 0;
+ return (id && SvOK(id) && SvIOK(id)) ? SvIV(id) : 0;
 }
+
+/* ... op -> source position ............................................... */
+
+STATIC HV *indirect_map = NULL;
+STATIC const char *indirect_linestr = NULL;
 
 STATIC void indirect_map_store(pTHX_ const OP *o, const char *src, SV *sv) {
 #define indirect_map_store(O, S, N) indirect_map_store(aTHX_ (O), (S), (N))
@@ -46,16 +58,18 @@ STATIC void indirect_map_store(pTHX_ const OP *o, const char *src, SV *sv) {
  val = newSVsv(sv);
  SvUPGRADE(val, SVt_PVIV);
  SvUVX(val) = PTR2UV(src);
+ SvIOK_on(val);
+ SvIsUV_on(val);
  if (!hv_store(indirect_map, buf, sprintf(buf, "%u", PTR2UV(o)), val, 0))
   SvREFCNT_dec(val);
 }
 
-STATIC const char *indirect_map_fetch(pTHX_ const OP *o, SV **name) {
+STATIC const char *indirect_map_fetch(pTHX_ const OP *o, SV ** const name) {
 #define indirect_map_fetch(O, S) indirect_map_fetch(aTHX_ (O), (S))
  char buf[32];
  SV **val;
 
- if (indirect_linestr != SvPVX(PL_parser->linestr))
+ if (indirect_linestr != SvPVX_const(PL_parser->linestr))
   return NULL;
 
  val = hv_fetch(indirect_map, buf, sprintf(buf, "%u", PTR2UV(o)), 0);
@@ -66,52 +80,6 @@ STATIC const char *indirect_map_fetch(pTHX_ const OP *o, SV **name) {
 
  *name = *val;
  return INT2PTR(const char *, SvUVX(*val));
-}
-
-STATIC UV indirect_intuit(const char *meth, const char *obj) {
- const char *s;
- int indirect = 0, quotelike = 0;
-
- for (s = meth; s < obj; ++s) {
-  switch (*s) {
-   case ',':
-   case '(':
-   case '=':
-   case '\'':
-   case '"':
-   case '`':
-    return 0;
-   case '-':
-    indirect = 1;
-    break;
-   case '>':
-    if (indirect)
-     return 0;
-    break;
-   case 'q':
-    indirect = 0;
-    if (quotelike == 1)
-     quotelike = 2;
-    break;
-   case 'w':
-   case 'r':
-   case 'x':
-    indirect = 0;
-    if (quotelike != 2)
-     quotelike = 0;
-    break;
-   default:
-    indirect = 0;
-    if (isSPACE(*s))
-     quotelike = 1;
-    else if (quotelike == 2 && !isALNUM(*s))
-     return 0;
-    else
-     quotelike = 0;
-  }
- }
-
- return 1;
 }
 
 STATIC const char *indirect_find(pTHX_ SV *sv, const char *s) {
@@ -133,6 +101,8 @@ STATIC const char *indirect_find(pTHX_ SV *sv, const char *s) {
  return p;
 }
 
+/* ... ck_const ............................................................ */
+
 STATIC OP *(*indirect_old_ck_const)(pTHX_ OP *) = 0;
 
 STATIC OP *indirect_ck_const(pTHX_ OP *o) {
@@ -144,6 +114,8 @@ STATIC OP *indirect_ck_const(pTHX_ OP *o) {
 
  return CALL_FPTR(indirect_old_ck_const)(aTHX_ o);
 }
+
+/* ... ck_rv2sv ............................................................ */
 
 STATIC OP *(*indirect_old_ck_rv2sv)(pTHX_ OP *) = 0;
 
@@ -161,6 +133,8 @@ STATIC OP *indirect_ck_rv2sv(pTHX_ OP *o) {
  return CALL_FPTR(indirect_old_ck_rv2sv)(aTHX_ o);
 }
 
+/* ... ck_padany ........................................................... */
+
 STATIC OP *(*indirect_old_ck_padany)(pTHX_ OP *) = 0;
 
 STATIC OP *indirect_ck_padany(pTHX_ OP *o) {
@@ -177,6 +151,8 @@ STATIC OP *indirect_ck_padany(pTHX_ OP *o) {
 
  return CALL_FPTR(indirect_old_ck_padany)(aTHX_ o);
 }
+
+/* ... ck_method ........................................................... */
 
 STATIC OP *(*indirect_old_ck_method)(pTHX_ OP *) = 0;
 
@@ -202,12 +178,16 @@ done:
  return CALL_FPTR(indirect_old_ck_method)(aTHX_ o);
 }
 
+/* ... ck_entersub ......................................................... */
+
+STATIC const char indirect_msg[] = "Indirect call of method \"%s\" on object \"%s\"";
+
 STATIC OP *(*indirect_old_ck_entersub)(pTHX_ OP *) = 0;
 
 STATIC OP *indirect_ck_entersub(pTHX_ OP *o) {
  LISTOP *op;
  OP *om, *oo;
- UV hint = indirect_hint();
+ IV hint = indirect_hint();
 
  if (hint) {
   const char *pm, *po;
@@ -221,14 +201,26 @@ STATIC OP *indirect_ck_entersub(pTHX_ OP *o) {
    om = om->op_sibling;
   if (om->op_type == OP_METHOD)
    om = cUNOPx(om)->op_first;
+  else if (om->op_type != OP_METHOD_NAMED)
+   goto done;
   pm = indirect_map_fetch(om, &svm);
   po = indirect_map_fetch(oo, &svo);
-  if (pm && po && pm < po && indirect_intuit(pm, po))
-   ((hint == 2) ? croak : warn)(indirect_msg, SvPV_nolen(svm), SvPV_nolen(svo));
+  if (pm && po && pm < po) {
+   const char *psvm = SvPV_nolen_const(svm), *psvo = SvPV_nolen_const(svo);
+   if (hint == 2)
+    croak(indirect_msg, psvm, psvo);
+   else
+    warn(indirect_msg, psvm, psvo);
+  }
  }
 
+done:
  return CALL_FPTR(indirect_old_ck_entersub)(aTHX_ o);
 }
+
+STATIC U32 indirect_initialized = 0;
+
+/* --- XS ------------------------------------------------------------------ */
 
 MODULE = indirect      PACKAGE = indirect
 

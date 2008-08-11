@@ -3,12 +3,7 @@
 use strict;
 use warnings;
 
-my $total;
-BEGIN {
- $total = 20;
-}
-
-use Test::More tests => 1;
+use Test::More;
 
 use IPC::Cmd qw/run/;
 
@@ -21,5 +16,8 @@ use IPC::Cmd qw/run/;
           't/data/bad.d'
    ];
 
-$stderr = join "\n", @$stderr if ref $stderr eq 'ARRAY';
+plan skip_all => "Couldn't capture buffers" if $success and not defined $stderr;
+plan tests => 1;
+
+$stderr = join '', @$stderr;
 ok(!$success && $err_code && $stderr =~ /^Indirect\s+call\s+of\s+method\s+"new"\s+on\s+object\s+"Hlagh1"/mg, 'croak when :fatal is specified');

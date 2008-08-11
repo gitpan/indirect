@@ -3,12 +3,9 @@
 use strict;
 use warnings;
 
-my $total;
-BEGIN {
- $total = 8;
-}
+my $total = 8;
 
-use Test::More tests => $total + 1;
+use Test::More;
 
 use IPC::Cmd qw/run/;
 
@@ -19,11 +16,16 @@ use IPC::Cmd qw/run/;
           '-c',
           't/data/mixed.d'
    ];
+
+plan skip_all => "Couldn't capture buffers" if $success and not defined $stderr;
+plan tests => $total + 1;
+
+$stderr = join '', @$stderr;
 unless ($success) {
- $stderr = pop @$stderr if ref $stderr eq 'ARRAY';
- BAIL_OUT("Failed to execute data file (error $err_code) : $stderr");
+ diag $stderr;
+ diag "Failed to execute data file (error $err_code)";
+ fail "Couldn't run test $_" for 1 .. $total + 1;
 }
-$stderr = join "\n", @$stderr if ref $stderr eq 'ARRAY';
 
 my %fail = map { $_ => 1 } 2, 3, 5, 7;
 my %failed;
