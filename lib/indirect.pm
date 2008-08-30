@@ -9,13 +9,13 @@ indirect - Lexically warn about using the indirect object syntax.
 
 =head1 VERSION
 
-Version 0.03
+Version 0.04
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.03';
+ $VERSION = '0.04';
 }
 
 =head1 SYNOPSIS
@@ -67,8 +67,6 @@ L<perl> 5.9.4.
 
 L<XSLoader> (standard since perl 5.006).
 
-Tests require L<IPC::Cmd> (standard since 5.9.5).
-
 =head1 AUTHOR
 
 Vincent Pit, C<< <perl at profvince.com> >>, L<http://www.profvince.com>.
@@ -84,6 +82,8 @@ Please report any bugs or feature requests to C<bug-indirect at rt.cpan.org>, or
 You can find documentation for this module with the perldoc command.
 
     perldoc indirect
+
+Tests code coverage report is available at L<http://www.profvince.com/perl/cover/indirect>.
 
 =head1 ACKNOWLEDGEMENTS
 

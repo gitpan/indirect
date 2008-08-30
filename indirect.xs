@@ -37,6 +37,8 @@ STATIC IV indirect_hint(pTHX) {
 STATIC HV *indirect_map = NULL;
 STATIC const char *indirect_linestr = NULL;
 
+#define OP2STR(O) (sprintf(buf, "%u", PTR2UV(o)))
+
 STATIC void indirect_map_store(pTHX_ const OP *o, const char *src, SV *sv) {
 #define indirect_map_store(O, S, N) indirect_map_store(aTHX_ (O), (S), (N))
  char buf[32];
@@ -60,7 +62,7 @@ STATIC void indirect_map_store(pTHX_ const OP *o, const char *src, SV *sv) {
  SvUVX(val) = PTR2UV(src);
  SvIOK_on(val);
  SvIsUV_on(val);
- if (!hv_store(indirect_map, buf, sprintf(buf, "%u", PTR2UV(o)), val, 0))
+ if (!hv_store(indirect_map, buf, OP2STR(o), val, 0))
   SvREFCNT_dec(val);
 }
 
@@ -72,7 +74,7 @@ STATIC const char *indirect_map_fetch(pTHX_ const OP *o, SV ** const name) {
  if (indirect_linestr != SvPVX_const(PL_parser->linestr))
   return NULL;
 
- val = hv_fetch(indirect_map, buf, sprintf(buf, "%u", PTR2UV(o)), 0);
+ val = hv_fetch(indirect_map, buf, OP2STR(o), 0);
  if (!val) {
   *name = NULL;
   return NULL;
@@ -80,6 +82,27 @@ STATIC const char *indirect_map_fetch(pTHX_ const OP *o, SV ** const name) {
 
  *name = *val;
  return INT2PTR(const char *, SvUVX(*val));
+}
+
+STATIC void indirect_map_delete(pTHX_ const OP *o) {
+#define indirect_map_delete(O) indirect_map_delete(aTHX_ (O))
+ char buf[32];
+ SV *val;
+
+ hv_delete(indirect_map, buf, OP2STR(o), G_DISCARD);
+}
+
+STATIC void indirect_map_clean(pTHX_ const OP *o) {
+#define indirect_map_clean(O) indirect_map_clean(aTHX_ (O))
+ if (o->op_flags & OPf_KIDS) {
+  const OP *kid = cUNOPo->op_first;
+  for (; kid; kid = kid->op_sibling) {
+   indirect_map_delete(kid);
+   indirect_map_clean(kid);
+  }
+ } else {
+  indirect_map_delete(o);
+ }
 }
 
 STATIC const char *indirect_find(pTHX_ SV *sv, const char *s) {
@@ -106,13 +129,15 @@ STATIC const char *indirect_find(pTHX_ SV *sv, const char *s) {
 STATIC OP *(*indirect_old_ck_const)(pTHX_ OP *) = 0;
 
 STATIC OP *indirect_ck_const(pTHX_ OP *o) {
+ o = CALL_FPTR(indirect_old_ck_const)(aTHX_ o);
+
  if (indirect_hint()) {
   SV *sv = cSVOPo_sv;
   if (SvPOK(sv) && (SvTYPE(sv) >= SVt_PV))
    indirect_map_store(o, indirect_find(sv, PL_parser->oldbufptr), sv);
  }
 
- return CALL_FPTR(indirect_old_ck_const)(aTHX_ o);
+ return o;
 }
 
 /* ... ck_rv2sv ............................................................ */
@@ -138,6 +163,8 @@ STATIC OP *indirect_ck_rv2sv(pTHX_ OP *o) {
 STATIC OP *(*indirect_old_ck_padany)(pTHX_ OP *) = 0;
 
 STATIC OP *indirect_ck_padany(pTHX_ OP *o) {
+ o = CALL_FPTR(indirect_old_ck_padany)(aTHX_ o);
+
  if (indirect_hint()) {
   SV *sv;
   const char *s = PL_parser->oldbufptr, *t = PL_parser->bufptr - 1;
@@ -149,7 +176,7 @@ STATIC OP *indirect_ck_padany(pTHX_ OP *o) {
   indirect_map_store(o, s, sv);
  }
 
- return CALL_FPTR(indirect_old_ck_padany)(aTHX_ o);
+ return o;
 }
 
 /* ... ck_method ........................................................... */
@@ -189,16 +216,20 @@ STATIC OP *indirect_ck_entersub(pTHX_ OP *o) {
  OP *om, *oo;
  IV hint = indirect_hint();
 
+ o = CALL_FPTR(indirect_old_ck_entersub)(aTHX_ o);
+
  if (hint) {
   const char *pm, *po;
   SV *svm, *svo;
-  op = (LISTOP *) o;
-  while (op->op_type != OP_PUSHMARK)
-   op = (LISTOP *) op->op_first;
-  oo = op->op_sibling;
-  om = oo;
-  while (om->op_sibling)
-   om = om->op_sibling;
+  oo = o;
+  do {
+   op = (LISTOP *) oo;
+   if (!op->op_flags & OPf_KIDS)
+    goto done;
+   oo = op->op_first;
+  } while (oo->op_type != OP_PUSHMARK);
+  oo = oo->op_sibling;
+  om = op->op_last;
   if (om->op_type == OP_METHOD)
    om = cUNOPx(om)->op_first;
   else if (om->op_type != OP_METHOD_NAMED)
@@ -212,10 +243,11 @@ STATIC OP *indirect_ck_entersub(pTHX_ OP *o) {
    else
     warn(indirect_msg, psvm, psvo);
   }
+done:
+  indirect_map_clean(o);
  }
 
-done:
- return CALL_FPTR(indirect_old_ck_entersub)(aTHX_ o);
+ return o;
 }
 
 STATIC U32 indirect_initialized = 0;
