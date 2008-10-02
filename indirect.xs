@@ -87,7 +87,6 @@ STATIC const char *indirect_map_fetch(pTHX_ const OP *o, SV ** const name) {
 STATIC void indirect_map_delete(pTHX_ const OP *o) {
 #define indirect_map_delete(O) indirect_map_delete(aTHX_ (O))
  char buf[32];
- SV *val;
 
  hv_delete(indirect_map, buf, OP2STR(o), G_DISCARD);
 }
@@ -151,7 +150,9 @@ STATIC OP *indirect_ck_rv2sv(pTHX_ OP *o) {
   if (SvPOK(name) && (SvTYPE(name) >= SVt_PV)) {
    SV *sv = sv_2mortal(newSVpvn("$", 1));
    sv_catsv(sv, name);
+   o = CALL_FPTR(indirect_old_ck_rv2sv)(aTHX_ o);
    indirect_map_store(o, indirect_find(sv, PL_parser->oldbufptr), sv);
+   return o;
   }
  }
 
