@@ -1,9 +1,15 @@
 #!perl -T
 
+package Dongs;
+
+sub new;
+
+package main;
+
 use strict;
 use warnings;
 
-use Test::More tests => 30 * 2;
+use Test::More tests => 33 * 4 + 2;
 
 my ($obj, $x);
 
@@ -11,19 +17,39 @@ my ($obj, $x);
  local $/ = "####\n";
  while (<DATA>) {
   chomp;
+  local $SIG{__WARN__} = sub { die 'warn:' . join(' ', @_) };
   {
    use indirect;
-   local $SIG{__WARN__} = sub { die 'warn:' . join(' ', @_) };
    eval "die qq{ok\\n}; $_";
   }
-  is($@, "ok\n", $_);
+  is($@, "ok\n", "use indirect: $_");
   {
    no indirect;
-   local $SIG{__WARN__} = sub { die 'warn:' . join(' ', @_) };
    eval "die qq{the code compiled but it shouldn't have\n}; $_";
   }
-  like($@, qr/^warn:Indirect\s+call\s+of\s+method\s+"(?:new|meh|HlaghHlagh)"\s+on\s+object\s+"(?:Hlagh|newnew|\$x|\$_)"/, $_);
+  like($@, qr/^warn:Indirect\s+call\s+of\s+method\s+"(?:new|meh|HlaghHlagh)"\s+on\s+object\s+"(?:Hlagh|newnew|\$x|\$_)"/, "no indirect: $_");
+  s/Hlagh/Dongs/g;
+  {
+   use indirect;
+   eval "die qq{ok\\n}; $_";
+  }
+  is($@, "ok\n", "use indirect, defined: $_");
+  {
+   no indirect;
+   eval "die qq{the code compiled but it shouldn't have\n}; $_";
+  }
+  like($@, qr/^warn:Indirect\s+call\s+of\s+method\s+"(?:new|meh|DongsDongs)"\s+on\s+object\s+"(?:Dongs|newnew|\$x|\$_)"/, "no indirect, defined: $_");
  }
+}
+
+eval {
+ no indirect 'hlagh';
+ my $warn;
+ local $SIG{__WARN__} = sub { $warn = join ' ', @_ };
+ eval "die qq{the code compiled but it shouldn't have\n}; \$obj = new Hlagh1;";
+ like($warn, qr/^Indirect\s+call\s+of\s+method\s+"new"\s+on\s+object\s+"Hlagh1"/, 'no indirect "hlagh" enables the pragma');
+ eval "die qq{the code compiled but it shouldn't have\n}; \$obj = new Hlagh2;";
+ like($warn, qr/^Indirect\s+call\s+of\s+method\s+"new"\s+on\s+object\s+"Hlagh2"/, 'no indirect "hlagh" doesn\'t croak');
 }
 
 __DATA__
@@ -87,6 +113,12 @@ $obj = new $_     qq(bar baz);
 meh $x;
 ####
 meh $x, 1, 2;
+####
+new Hlagh->wut;
+####
+new Hlagh->wut();
+####
+new Hlagh->wut, "Wut";
 ####
 $obj = HlaghHlagh Hlagh;
 ####

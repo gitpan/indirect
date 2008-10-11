@@ -1,29 +1,45 @@
 #!perl -T
 
+package Dongs;
+
+sub new;
+
+package main;
+
 use strict;
 use warnings;
 
-use Test::More tests => 36 * 2;
+use Test::More tests => 40 * 4;
 
-my ($obj, $pkg, $cb, $x);
+my ($obj, $pkg, $cb, $x, @a);
 sub meh;
 
 {
  local $/ = "####\n";
  while (<DATA>) {
   chomp;
+  local $SIG{__WARN__} = sub { die 'warn:' . join(' ', @_) };
   {
    use indirect;
-   local $SIG{__WARN__} = sub { die 'warn:' . join(' ', @_) };
    eval "die qq{ok\\n}; $_";
   }
-  is($@, "ok\n", $_);
+  is($@, "ok\n", "use indirect: $_");
   {
    no indirect;
-   local $SIG{__WARN__} = sub { die 'warn:' . join(' ', @_) };
    eval "die qq{ok\n}; $_";
   }
-  is($@, "ok\n", $_);
+  is($@, "ok\n", "no indirect: $_");
+  s/Hlagh/Dongs/g;
+  {
+   use indirect;
+   eval "die qq{ok\\n}; $_";
+  }
+  is($@, "ok\n", "use indirect, defined: $_");
+  {
+   no indirect;
+   eval "die qq{ok\\n}; $_";
+  }
+  is($@, "ok\n", "no indirect, defined: $_");
  }
 }
 
@@ -128,3 +144,11 @@ $obj = "apple ${\(new Hlagh)} pear"
 $obj = "apple @{[new Hlagh]} pear"
 ####
 s/dongs/new Hlagh/e;
+####
+exec $x $x, @a;
+####
+exec { $a[0] } @a;
+####
+system $x $x, @a;
+####
+system { $a[0] } @a;

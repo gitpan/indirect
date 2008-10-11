@@ -9,13 +9,13 @@ indirect - Lexically warn about using the indirect object syntax.
 
 =head1 VERSION
 
-Version 0.05
+Version 0.06
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.05';
+ $VERSION = '0.06';
 }
 
 =head1 SYNOPSIS
@@ -31,7 +31,7 @@ BEGIN {
 
 =head1 DESCRIPTION
 
-When enabled (or disabled as some may prefer, since you actually turn it on by calling C<no indirect>), this pragma warns about indirect object syntax constructs that may have slipped into your code. This syntax is now considered harmful, since its parsing has many quirks and its use is error prone (when C<sub> isn't defined, C<sub $x> is actually interpreted as C<< $x->sub >>).
+When enabled (or disabled as some may prefer to say, since you actually turn it on by calling C<no indirect>), this pragma warns about indirect object syntax constructs that may have slipped into your code. This syntax is now considered harmful, since its parsing has many quirks and its use is error prone (when C<sub> isn't defined, C<sub $x> is actually interpreted as C<< $x->sub >>).
 
 It currently does not warn when the object is enclosed between braces (like C<meth { $obj } @args>) or for core functions (C<print> or C<say>). This may change in the future, or may be added as optional features that would be enabled by passing options to C<unimport>.
 
@@ -41,7 +41,7 @@ This module is B<not> a source filter.
 
 =head2 C<unimport @opts>
 
-Magically called when C<no indirect @args> is encountered. Turns the module on. If C<@opts> contains C<':fatal'>, the module will croak on the first indirect syntax met.
+Magically called when C<no indirect @opts> is encountered. Turns the module on. If C<@opts> contains C<':fatal'>, the module will croak on the first indirect syntax met.
 
 =head2 C<import>
 
@@ -73,7 +73,7 @@ L<XSLoader> (standard since perl 5.006).
 
 Vincent Pit, C<< <perl at profvince.com> >>, L<http://www.profvince.com>.
 
-You can contact me by mail or on #perl @ FreeNode (vincent or Prof_Vince).
+You can contact me by mail or on C<irc.perl.org> (vincent).
 
 =head1 BUGS
 
