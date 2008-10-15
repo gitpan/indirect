@@ -18,6 +18,10 @@
 # define SvPVX_const SvPVX
 #endif
 
+#ifndef sv_catpvn_nomg
+# define sv_catpvn_nomg sv_catpvn
+#endif
+
 /* ... Hints ............................................................... */
 
 STATIC U32 indirect_hash = 0;
@@ -62,8 +66,7 @@ STATIC void indirect_map_store(pTHX_ const OP *o, const char *src, SV *sv) {
  SvUVX(val) = PTR2UV(src);
  SvIOK_on(val);
  SvIsUV_on(val);
- if (!hv_store(indirect_map, buf, OP2STR(o), val, 0))
-  SvREFCNT_dec(val);
+ if (!hv_store(indirect_map, buf, OP2STR(o), val, 0)) SvREFCNT_dec(val);
 }
 
 STATIC const char *indirect_map_fetch(pTHX_ const OP *o, SV ** const name) {
@@ -109,9 +112,6 @@ STATIC const char *indirect_find(pTHX_ SV *sv, const char *s) {
  STRLEN len;
  const char *p = NULL, *r = SvPV_const(sv, len);
 
- if (!len)
-  return s;
-
  p = strstr(s, r);
  while (p) {
   p += len;
@@ -146,8 +146,10 @@ STATIC OP *(*indirect_old_ck_rv2sv)(pTHX_ OP *) = 0;
 STATIC OP *indirect_ck_rv2sv(pTHX_ OP *o) {
  if (indirect_hint()) {
   OP *op = cUNOPo->op_first;
-  const char *name = NULL;
+  SV *sv;
+  const char *name = NULL, *s;
   STRLEN len;
+
   switch (op->op_type) {
    case OP_GV:
    case OP_GVSV: {
@@ -163,15 +165,40 @@ STATIC OP *indirect_ck_rv2sv(pTHX_ OP *o) {
     break;
    }
   }
-  if (name) {
-   SV *sv = sv_2mortal(newSVpvn("$", 1));
-   sv_catpvn(sv, name, len);
-   o = CALL_FPTR(indirect_old_ck_rv2sv)(aTHX_ o);
-   indirect_map_store(o, indirect_find(sv, PL_parser->oldbufptr), sv);
-   return o;
+  if (!name)
+   goto done;
+
+  sv = sv_2mortal(newSVpvn("$", 1));
+  sv_catpvn_nomg(sv, name, len);
+  s = indirect_find(sv, PL_parser->oldbufptr);
+  if (!s) { /* If it failed, retry without the current stash */
+   const char *stash = HvNAME_get(PL_curstash);
+   STRLEN stashlen = HvNAMELEN_get(PL_curstash);
+
+   if ((len < stashlen + 2) || name != strstr(name, stash)) {
+    /* Failed again ? Try to remove main */
+    stash = "main";
+    stashlen = 4;
+    if ((len < stashlen + 2) || name != strstr(name, stash))
+     goto done;
+   }
+   if (name[stashlen] != ':' || name[stashlen+1] != ':')
+    goto done;
+
+   sv_setpvn(sv, "$", 1);
+   stashlen += 2;
+   sv_catpvn_nomg(sv, name + stashlen, len - stashlen);
+   s = indirect_find(sv, PL_parser->oldbufptr);
+   if (!s)
+    goto done;
   }
+
+  o = CALL_FPTR(indirect_old_ck_rv2sv)(aTHX_ o);
+  indirect_map_store(o, s, sv);
+  return o;
  }
 
+done:
  return CALL_FPTR(indirect_old_ck_rv2sv)(aTHX_ o);
 }
 
