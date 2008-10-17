@@ -9,15 +9,21 @@ package main;
 use strict;
 use warnings;
 
-use Test::More tests => 44 * 4 + 2;
+use Test::More tests => 44 * 6 + 2;
 
 my ($obj, $x);
 our ($y, $bloop);
+
+sub expect {
+ my ($pkg) = @_;
+ return qr/^warn:Indirect call of method "(?:new|meh|$pkg$pkg)" on object "(?:$pkg|newnew|\$(?:[xy_]|(?:sploosh::)?sploosh|(?:main::)?bloop))"/
+}
 
 {
  local $/ = "####\n";
  while (<DATA>) {
   chomp;
+  s/\s*$//;
   local $SIG{__WARN__} = sub { die 'warn:' . join(' ', @_) };
   {
    use indirect;
@@ -28,7 +34,7 @@ our ($y, $bloop);
    no indirect;
    eval "die qq{the code compiled but it shouldn't have\n}; $_";
   }
-  like($@, qr/^warn:Indirect\s+call\s+of\s+method\s+"(?:new|meh|HlaghHlagh)"\s+on\s+object\s+"(?:Hlagh|newnew|\$[xy_]|\$(?:sploosh::)?sploosh|\$(?:main::)?bloop)"/, "no indirect: $_");
+  like($@, expect('Hlagh'), "no indirect: $_");
   s/Hlagh/Dongs/g;
   {
    use indirect;
@@ -39,7 +45,19 @@ our ($y, $bloop);
    no indirect;
    eval "die qq{the code compiled but it shouldn't have\n}; $_";
   }
-  like($@, qr/^warn:Indirect\s+call\s+of\s+method\s+"(?:new|meh|DongsDongs)"\s+on\s+object\s+"(?:Dongs|newnew|\$[xy_]|\$(?:sploosh::)?sploosh|\$(?:main::)?bloop)"/, "no indirect, defined: $_");
+  like($@, expect('Dongs'), "no indirect, defined: $_");
+  s/\$/\$ \n\t /g;
+  s/Dongs/Hlagh/g;
+  {
+   use indirect;
+   eval "die qq{ok\\n}; $_";
+  }
+  is($@, "ok\n", "use indirect, spaces: $_");
+  {
+   no indirect;
+   eval "die qq{the code compiled but it shouldn't have\n}; $_";
+  }
+  like($@, expect('Hlagh'), "no indirect, spaces: $_");
  }
 }
 
