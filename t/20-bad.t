@@ -9,14 +9,17 @@ package main;
 use strict;
 use warnings;
 
-use Test::More tests => 44 * 6 + 2;
+use Test::More tests => 50 * 6 + 2;
+
+use feature 'state';
 
 my ($obj, $x);
 our ($y, $bloop);
+state $z;
 
 sub expect {
  my ($pkg) = @_;
- return qr/^warn:Indirect call of method "(?:new|meh|$pkg$pkg)" on object "(?:$pkg|newnew|\$(?:[xy_]|(?:sploosh::)?sploosh|(?:main::)?bloop))"/
+ return qr/^warn:Indirect call of method "(?:new|meh|$pkg$pkg)" on object "(?:$pkg|newnew|\$(?:[xyz_\$]|(?:sploosh::)?sploosh|(?:main::)?bloop))"/
 }
 
 {
@@ -133,6 +136,10 @@ meh $_;
 ####
 meh $_ 1, 2;
 ####
+meh $$;
+####
+meh $$ 1, 2;
+####
 meh $x;
 ####
 meh $x 1, 2;
@@ -144,6 +151,12 @@ meh $y;
 meh $y 1, 2;
 ####
 meh $y, 1, 2;
+####
+meh $z;
+####
+meh $z 1, 2;
+####
+meh $z, 1, 2;
 ####
 package sploosh;
 our $sploosh;
@@ -157,6 +170,9 @@ package sploosh;
 meh $main::bloop;
 ####
 package sploosh;
+meh $bloop;
+####
+package ma;
 meh $bloop;
 ####
 package sploosh;
