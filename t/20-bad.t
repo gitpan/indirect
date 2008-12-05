@@ -11,11 +11,8 @@ use warnings;
 
 use Test::More tests => 50 * 6 + 2;
 
-use feature 'state';
-
 my ($obj, $x);
 our ($y, $bloop);
-state $z;
 
 sub expect {
  my ($pkg) = @_;
@@ -23,58 +20,58 @@ sub expect {
 }
 
 {
- local $/ = "####\n";
+ local $/ = "####";
  while (<DATA>) {
   chomp;
   s/\s*$//;
-  local $SIG{__WARN__} = sub { die 'warn:' . join(' ', @_) };
+  s/(.*?)$//m;
+  my ($skip, $prefix) = split /#+/, $1;
+  $skip   = 0  unless defined $skip;
+  $prefix = '' unless defined $prefix;
+  s/\s*//;
+
+SKIP:
   {
-   use indirect;
-   eval "die qq{ok\\n}; $_";
+   skip "$_: $skip" => 6 if eval $skip;
+
+   local $SIG{__WARN__} = sub { die 'warn:' . join(' ', @_) };
+
+   eval "die qq{ok\\n}; $prefix; use indirect; $_";
+   is($@, "ok\n", "use indirect: $_");
+
+   eval "die qq{the code compiled but it shouldn't have\n}; $prefix; no indirect; $_";
+   like($@, expect('Hlagh'), "no indirect: $_");
+
+   s/Hlagh/Dongs/g;
+
+   eval "die qq{ok\\n}; $prefix; use indirect; $_";
+   is($@, "ok\n", "use indirect, defined: $_");
+
+   eval "die qq{the code compiled but it shouldn't have\n}; $prefix; no indirect; $_";
+   like($@, expect('Dongs'), "no indirect, defined: $_");
+
+   s/\$/\$ \n\t /g;
+   s/Dongs/Hlagh/g;
+
+   eval "die qq{ok\\n}; $prefix; use indirect; $_";
+   is($@, "ok\n", "use indirect, spaces: $_");
+
+   eval "die qq{the code compiled but it shouldn't have\n}; $prefix; no indirect; $_";
+   like($@, expect('Hlagh'), "no indirect, spaces: $_");
   }
-  is($@, "ok\n", "use indirect: $_");
-  {
-   no indirect;
-   eval "die qq{the code compiled but it shouldn't have\n}; $_";
-  }
-  like($@, expect('Hlagh'), "no indirect: $_");
-  s/Hlagh/Dongs/g;
-  {
-   use indirect;
-   eval "die qq{ok\\n}; $_";
-  }
-  is($@, "ok\n", "use indirect, defined: $_");
-  {
-   no indirect;
-   eval "die qq{the code compiled but it shouldn't have\n}; $_";
-  }
-  like($@, expect('Dongs'), "no indirect, defined: $_");
-  s/\$/\$ \n\t /g;
-  s/Dongs/Hlagh/g;
-  {
-   use indirect;
-   eval "die qq{ok\\n}; $_";
-  }
-  is($@, "ok\n", "use indirect, spaces: $_");
-  {
-   no indirect;
-   eval "die qq{the code compiled but it shouldn't have\n}; $_";
-  }
-  like($@, expect('Hlagh'), "no indirect, spaces: $_");
  }
 }
 
 eval {
- no indirect 'hlagh';
  my $warn;
  local $SIG{__WARN__} = sub { $warn = join ' ', @_ };
- eval "die qq{the code compiled but it shouldn't have\n}; \$obj = new Hlagh1;";
+ eval "die qq{ok\n}; no indirect 'hlagh'; \$obj = new Hlagh1;";
+ is($@, "ok\n", 'no indirect "hlagh" didn\'t croak');
  like($warn, qr/^Indirect\s+call\s+of\s+method\s+"new"\s+on\s+object\s+"Hlagh1"/, 'no indirect "hlagh" enables the pragma');
- eval "die qq{the code compiled but it shouldn't have\n}; \$obj = new Hlagh2;";
- like($warn, qr/^Indirect\s+call\s+of\s+method\s+"new"\s+on\s+object\s+"Hlagh2"/, 'no indirect "hlagh" doesn\'t croak');
 }
 
 __DATA__
+
 $obj = new Hlagh;
 ####
 $obj = new Hlagh();
@@ -151,11 +148,11 @@ meh $y;
 meh $y 1, 2;
 ####
 meh $y, 1, 2;
-####
+#### $] < 5.010 # use feature 'state'; state $z
 meh $z;
-####
+#### $] < 5.010 # use feature 'state'; state $z
 meh $z 1, 2;
-####
+#### $] < 5.010 # use feature 'state'; state $z
 meh $z, 1, 2;
 ####
 package sploosh;

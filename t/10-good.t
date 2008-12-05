@@ -9,46 +9,48 @@ package main;
 use strict;
 use warnings;
 
-use Test::More tests => 53 * 4;
-
-use feature 'state';
+use Test::More tests => 52 * 4;
 
 my ($obj, $pkg, $cb, $x, @a);
 our $y;
-state $z;
 sub meh;
 
 {
- local $/ = "####\n";
+ local $/ = "####";
  while (<DATA>) {
   chomp;
   s/\s*$//;
-  local $SIG{__WARN__} = sub { die 'warn:' . join(' ', @_) };
+  s/(.*?)$//m;
+  my ($skip, $prefix) = split /#+/, $1;
+  $skip   = 0  unless defined $skip;
+  $prefix = '' unless defined $prefix;
+  s/\s*//;
+
+SKIP:
   {
-   use indirect;
-   eval "die qq{ok\\n}; $_";
+   skip "$_: $skip" => 4 if eval $skip;
+
+   local $SIG{__WARN__} = sub { die 'warn:' . join(' ', @_) };
+
+   eval "die qq{ok\\n}; $prefix; use indirect; $_";
+   is($@, "ok\n", "use indirect: $_");
+
+   eval "die qq{ok\n}; $prefix; no indirect; $_";
+   is($@, "ok\n", "no indirect: $_");
+
+   s/Hlagh/Dongs/g;
+
+   eval "die qq{ok\\n}; $prefix; use indirect; $_";
+   is($@, "ok\n", "use indirect, defined: $_");
+
+   eval "die qq{ok\\n}; $prefix; no indirect; $_";
+   is($@, "ok\n", "no indirect, defined: $_");
   }
-  is($@, "ok\n", "use indirect: $_");
-  {
-   no indirect;
-   eval "die qq{ok\n}; $_";
-  }
-  is($@, "ok\n", "no indirect: $_");
-  s/Hlagh/Dongs/g;
-  {
-   use indirect;
-   eval "die qq{ok\\n}; $_";
-  }
-  is($@, "ok\n", "use indirect, defined: $_");
-  {
-   no indirect;
-   eval "die qq{ok\\n}; $_";
-  }
-  is($@, "ok\n", "no indirect, defined: $_");
  }
 }
 
 __DATA__
+
 $obj = Hlagh->new;
 ####
 $obj = Hlagh->new();
@@ -145,9 +147,9 @@ meh $x, 1, 2;
 meh $y;
 ####
 meh $y, 1, 2;
-####
+#### $] < 5.010 # use feature 'state'; state $z
 meh $z;
-####
+#### $] < 5.010 # use feature 'state'; state $z
 meh $z, 1, 2;
 ####
 print;
@@ -161,20 +163,18 @@ print $x "oh hai\n";
 print $y;
 ####
 print $y "dongs\n";
-####
+#### $] < 5.010 # use feature 'state'; state $z
 print $z;
-####
+#### $] < 5.010 # use feature 'state'; state $z
 print $z "hlagh\n";
 ####
 print STDOUT "bananananananana\n";
 ####
 $x->foo($pkg->$cb)
-####
+#### "seems to segfault with strict libc implementations" #
 $obj = "apple ${\(new Hlagh)} pear"
 ####
 $obj = "apple @{[new Hlagh]} pear"
-####
-s/dongs/new Hlagh/e;
 ####
 exec $x $x, @a;
 ####
