@@ -11,13 +11,13 @@ indirect - Lexically warn about using the indirect object syntax.
 
 =head1 VERSION
 
-Version 0.09_01
+Version 0.10
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.09_01';
+ $VERSION = '0.10';
 }
 
 =head1 SYNOPSIS
@@ -66,18 +66,18 @@ sub unimport {
  $^H{indirect} = (defined $type and $type eq ':fatal') ? 2 : 1;
 }
 
-=head1 DEPENDENCIES
-
-L<perl> 5.8.
-
-L<XSLoader> (standard since perl 5.006).
-
 =head1 CAVEATS
 
 C<meth $obj> (no semicolon) at the end of a file won't be seen as an indirect object syntax, although it will as soon as there is another token before the end (as in C<meth $obj;> or C<meth $obj 1>).
 
 With 5.8 perls, the pragma does not propagate into C<eval STRING>.
 This is due to a shortcoming in the way perl handles the hints hash, which is addressed in perl 5.10.
+
+=head1 DEPENDENCIES
+
+L<perl> 5.8.
+
+L<XSLoader> (standard since perl 5.006).
 
 =head1 AUTHOR
 
@@ -103,7 +103,7 @@ Bram, for motivation and advices.
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2008 Vincent Pit, all rights reserved.
+Copyright 2008-2009 Vincent Pit, all rights reserved.
 
 This program is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
 
