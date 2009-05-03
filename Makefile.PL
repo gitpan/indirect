@@ -4,6 +4,15 @@ use strict;
 use warnings;
 use ExtUtils::MakeMaker;
 
+my @DEFINES;
+
+# Threads, Windows and 5.8.x don't seem to be best friends
+if ($^O eq 'MSWin32' && $^V lt v5.9.0) {
+ push @DEFINES, '-DI_MULTIPLICITY=0';
+}
+
+@DEFINES = (DEFINE => join ' ', @DEFINES) if @DEFINES;
+
 my $dist = 'indirect';
 
 my %META = (
@@ -18,7 +27,7 @@ my %META = (
   bugtracker => "http://rt.cpan.org/NoAuth/ReportBug.html?Queue=$dist",
   homepage   => "http://search.cpan.org/dist/$dist/",
   license    => 'http://dev.perl.org/licenses/',
-  repository => "http://git.profvince.com/perl/modules/$dist.git",
+  repository => "http://git.profvince.com/?p=perl%2Fmodules%2F$dist.git",
  },
 );
 
@@ -29,6 +38,7 @@ WriteMakefile(
     VERSION_FROM     => 'lib/indirect.pm',
     ABSTRACT_FROM    => 'lib/indirect.pm',
     PL_FILES         => {},
+    @DEFINES,
     PREREQ_PM        => {
         'XSLoader' => 0,
     },

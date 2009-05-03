@@ -11,43 +11,47 @@ indirect - Lexically warn about using the indirect object syntax.
 
 =head1 VERSION
 
-Version 0.11
+Version 0.12
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.11';
+ $VERSION = '0.12';
 }
 
 =head1 SYNOPSIS
 
+    # In a script
     no indirect;
     my $x = new Apple 1, 2, 3; # warns
     {
      use indirect;
      my $y = new Pear; # ok
+     {
+      no indirect hook => sub { die "You really wanted $_[0]\->$_[1]" };
+      my $z = new Pineapple 'fresh'; # croaks 'You really wanted Pineapple->new'
+     }
     }
     no indirect ':fatal';
     if (defied $foo) { ... } # croaks, note the typo
 
+    # From the command-line
+    perl -M-indirect -e 'my $x = new Banana;' # warns
+
+    # Or each time perl is ran
+    export PERL5OPT="-M-indirect"
+    perl -e 'my $y = new Coconut;' # warns
+
 =head1 DESCRIPTION
 
-When enabled (or disabled as some may prefer to say, since you actually turn it on by calling C<no indirect>), this pragma warns about indirect object syntax constructs that may have slipped into your code. This syntax is now considered harmful, since its parsing has many quirks and its use is error prone (when C<sub> isn't defined, C<sub $x> is actually interpreted as C<< $x->sub >>).
+When enabled (or disabled as some may prefer to say, since you actually turn it on by calling C<no indirect>), this pragma warns about indirect object syntax constructs that may have slipped into your code.
+This syntax is now considered harmful, since its parsing has many quirks and its use is error prone (when C<sub> isn't defined, C<sub $x> is actually interpreted as C<< $x->sub >>).
 
-It currently does not warn when the object is enclosed between braces (like C<meth { $obj } @args>) or for core functions (C<print> or C<say>). This may change in the future, or may be added as optional features that would be enabled by passing options to C<unimport>.
+It currently does not warn when the object is enclosed between braces (like C<meth { $obj } @args>) or for core functions (C<print> or C<say>).
+This may change in the future, or may be added as optional features that would be enabled by passing options to C<unimport>.
 
 This module is B<not> a source filter.
-
-=head1 METHODS
-
-=head2 C<unimport @opts>
-
-Magically called when C<no indirect @opts> is encountered. Turns the module on. If C<@opts> contains C<':fatal'>, the module will croak on the first indirect syntax met.
-
-=head2 C<import>
-
-Magically called at each C<use indirect>. Turns the module off.
 
 =cut
 
@@ -56,15 +60,71 @@ BEGIN {
  XSLoader::load(__PACKAGE__, $VERSION);
 }
 
-sub import {
- $^H{indirect} = undef;
-}
+=head1 METHODS
+
+=head2 C<< unimport [ hook => $hook | ':fatal' ] >>
+
+Magically called when C<no indirect @opts> is encountered.
+Turns the module on.
+The policy to apply depends on what is first found in C<@opts> :
+
+=over 4
+
+=item *
+
+If it's the string C<':fatal'>, the compilation will croak on the first indirect syntax met.
+
+=item *
+
+If the key/value pair C<< hook => $hook >> comes first, C<$hook> will be called for each error with the object name as C<$_[0]> and the method name as C<$_[1]>.
+
+=item *
+
+Otherwise, a warning will be emitted for each indirect construct.
+
+=back
+
+=cut
+
+my $msg = sub { "Indirect call of method \"$_[1]\" on object \"$_[0]\"" };
 
 sub unimport {
- (undef, my $type) = @_;
+ shift;
+
+ my $hook;
+ while (@_) {
+  my $arg = shift;
+  if ($arg eq 'hook') {
+   $hook = shift;
+  } elsif ($arg eq ':fatal') {
+   $hook = sub { die $msg->(@_) };
+  }
+  last if $hook;
+ }
+ $hook = sub { warn $msg->(@_) } unless defined $hook;
+
  $^H |= 0x00020000;
- $^H{indirect} = (defined $type and $type eq ':fatal') ? 2 : 1;
+ $^H{+(__PACKAGE__)} = _tag($hook);
+
+ ();
 }
+
+=head2 C<import>
+
+Magically called at each C<use indirect>. Turns the module off.
+
+=cut
+
+sub import {
+ $^H{+(__PACKAGE__)} = undef;
+ ();
+}
+
+=head1 CONSTANTS
+
+=head2 C<I_THREADSAFE>
+
+True iff the module could have been built when thread-safety features.
 
 =head1 CAVEATS
 
@@ -87,7 +147,8 @@ You can contact me by mail or on C<irc.perl.org> (vincent).
 
 =head1 BUGS
 
-Please report any bugs or feature requests to C<bug-indirect at rt.cpan.org>, or through the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=indirect>.  I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.
+Please report any bugs or feature requests to C<bug-indirect at rt.cpan.org>, or through the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=indirect>.
+I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.
 
 =head1 SUPPORT
 
