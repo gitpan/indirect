@@ -11,13 +11,13 @@ indirect - Lexically warn about using the indirect object syntax.
 
 =head1 VERSION
 
-Version 0.13
+Version 0.14
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.13';
+ $VERSION = '0.14';
 }
 
 =head1 SYNOPSIS
@@ -46,7 +46,7 @@ BEGIN {
 =head1 DESCRIPTION
 
 When enabled (or disabled as some may prefer to say, since you actually turn it on by calling C<no indirect>), this pragma warns about indirect object syntax constructs that may have slipped into your code.
-This syntax is now considered harmful, since its parsing has many quirks and its use is error prone (when C<sub> isn't defined, C<sub $x> is actually interpreted as C<< $x->sub >>).
+This syntax is now considered harmful, since its parsing has many quirks and its use is error prone (when C<swoosh> isn't defined, C<swoosh $x> actually compiles to C<< $x->swoosh >>).
 
 It currently does not warn when the object is enclosed between braces (like C<meth { $obj } @args>) or for core functions (C<print> or C<say>).
 This may change in the future, or may be added as optional features that would be enabled by passing options to C<unimport>.
@@ -129,6 +129,8 @@ sub import {
 True iff the module could have been built when thread-safety features.
 
 =head1 CAVEATS
+
+The implementation was tweaked to work around several limitations of vanilla C<perl> pragmas : it's thread safe, and doesn't suffer from a C<perl 5.8.x-5.10.0> bug that causes all pragmas to propagate into C<require>d scopes.
 
 C<meth $obj> (no semicolon) at the end of a file won't be seen as an indirect object syntax, although it will as soon as there is another token before the end (as in C<meth $obj;> or C<meth $obj 1>).
 

@@ -155,7 +155,7 @@ STATIC void PTABLE_PREFIX(_store)(pPTBL_ ptable * const t, const void * const ke
   void *oldval = ent->val;
   PTABLE_VAL_FREE(oldval);
   ent->val = val;
- } else {
+ } else if (val) {
   const UV i = PTABLE_HASH(key) & t->max;
   ent = PerlMemShared_malloc(sizeof *ent);
   ent->key  = key;
