@@ -19,6 +19,10 @@
 # define dNOOP
 #endif
 
+#ifndef Newx
+# define Newx(v, n, c) New(0, v, n, c)
+#endif
+
 #ifndef SvPV_const
 # define SvPV_const SvPV
 #endif
@@ -33,6 +37,10 @@
 
 #ifndef sv_catpvn_nomg
 # define sv_catpvn_nomg sv_catpvn
+#endif
+
+#ifndef mPUSHp
+# define mPUSHp(P, L) PUSHs(sv_2mortal(newSVpvn((P), (L))))
 #endif
 
 #ifndef mPUSHu
@@ -152,8 +160,15 @@ typedef struct {
 /* Define the op->str ptable here because we need to be able to clean it during
  * thread cleanup. */
 
+typedef struct {
+ const char *pos;
+ char       *buf;
+ STRLEN      len, size;
+ line_t      line;
+} indirect_op_info_t;
+
 #define PTABLE_NAME        ptable
-#define PTABLE_VAL_FREE(V) SvREFCNT_dec(V)
+#define PTABLE_VAL_FREE(V) if (V) { Safefree(((indirect_op_info_t *) (V))->buf); Safefree(V); }
 
 #define pPTBL  pTHX
 #define pPTBL_ pTHX_
@@ -183,6 +198,29 @@ START_MY_CXT
 
 #if I_THREADSAFE
 
+STATIC SV *indirect_clone(pTHX_ SV *sv, tTHX owner) {
+#define indirect_clone(S, O) indirect_clone(aTHX_ (S), (O))
+ CLONE_PARAMS  param;
+ AV           *stashes = NULL;
+ SV           *dupsv;
+
+ if (SvTYPE(sv) == SVt_PVHV && HvNAME_get(sv))
+  stashes = newAV();
+
+ param.stashes    = stashes;
+ param.flags      = 0;
+ param.proto_perl = owner;
+
+ dupsv = sv_dup(sv, &param);
+
+ if (stashes) {
+  av_undef(stashes);
+  SvREFCNT_dec(stashes);
+ }
+
+ return SvREFCNT_inc(dupsv);
+}
+
 STATIC void indirect_ptable_clone(pTHX_ ptable_ent *ent, void *ud_) {
  my_cxt_t        *ud = ud_;
  indirect_hint_t *h1 = ent->val;
@@ -190,19 +228,8 @@ STATIC void indirect_ptable_clone(pTHX_ ptable_ent *ent, void *ud_) {
 
  *h2 = *h1;
 
- if (ud->owner != aTHX) {
-  SV *val = h1->code;
-  CLONE_PARAMS param;
-  AV *stashes = (SvTYPE(val) == SVt_PVHV && HvNAME_get(val)) ? newAV() : NULL;
-  param.stashes    = stashes;
-  param.flags      = 0;
-  param.proto_perl = ud->owner;
-  h2->code = sv_dup(val, &param);
-  if (stashes) {
-   av_undef(stashes);
-   SvREFCNT_dec(stashes);
-  }
- }
+ if (ud->owner != aTHX)
+  h2->code = indirect_clone(h1->code, ud->owner);
 
  ptable_hints_store(ud->tbl, ent->key, h2);
  SvREFCNT_inc(h2->code);
@@ -323,7 +350,7 @@ STATIC U32 indirect_hash = 0;
 
 STATIC SV *indirect_hint(pTHX) {
 #define indirect_hint() indirect_hint(aTHX)
- SV *hint, *code;
+ SV *hint;
 #if I_HAS_PERL(5, 9, 5)
  hint = Perl_refcounted_he_fetch(aTHX_ PL_curcop->cop_hints_hash,
                                        NULL,
@@ -342,10 +369,12 @@ STATIC SV *indirect_hint(pTHX) {
 
 /* ... op -> source position ............................................... */
 
-STATIC void indirect_map_store(pTHX_ const OP *o, const char *src, SV *sv) {
-#define indirect_map_store(O, S, N) indirect_map_store(aTHX_ (O), (S), (N))
+STATIC void indirect_map_store(pTHX_ const OP *o, const char *src, SV *sv, line_t line) {
+#define indirect_map_store(O, S, N, L) indirect_map_store(aTHX_ (O), (S), (N), (L))
+ indirect_op_info_t *oi;
+ const char *s;
+ STRLEN len;
  dMY_CXT;
- SV *val;
 
  /* When lex_inwhat is set, we're in a quotelike environment (qq, qr, but not q)
   * In this case the linestr has temporarly changed, but the old buffer should
@@ -359,32 +388,34 @@ STATIC void indirect_map_store(pTHX_ const OP *o, const char *src, SV *sv) {
   }
  }
 
- val = newSVsv(sv);
- SvUPGRADE(val, SVt_PVIV);
- SvUVX(val) = PTR2UV(src);
- SvIOK_on(val);
- SvIsUV_on(val);
- SvREADONLY_on(val);
+ if (!(oi = ptable_fetch(MY_CXT.map, o))) {
+  Newx(oi, 1, indirect_op_info_t);
+  ptable_store(MY_CXT.map, o, oi);
+  oi->buf  = NULL;
+  oi->size = 0;
+ }
 
- ptable_store(MY_CXT.map, o, val);
+ s = SvPV_const(sv, len);
+ if (len > oi->size) {
+  Safefree(oi->buf);
+  Newx(oi->buf, len, char);
+  oi->size = len;
+ }
+ Copy(s, oi->buf, len, char);
+ oi->len  = len;
+ oi->pos  = src;
+ oi->line = line;
 }
 
-STATIC const char *indirect_map_fetch(pTHX_ const OP *o, SV ** const name) {
-#define indirect_map_fetch(O, S) indirect_map_fetch(aTHX_ (O), (S))
+STATIC const indirect_op_info_t *indirect_map_fetch(pTHX_ const OP *o) {
+#define indirect_map_fetch(O) indirect_map_fetch(aTHX_ (O))
+ const indirect_op_info_t *val;
  dMY_CXT;
- SV *val;
 
  if (MY_CXT.linestr != SvPVX_const(PL_linestr))
   return NULL;
 
- val = ptable_fetch(MY_CXT.map, o);
- if (!val) {
-  *name = NULL;
-  return NULL;
- }
-
- *name = val;
- return INT2PTR(const char *, SvUVX(val));
+ return ptable_fetch(MY_CXT.map, o);
 }
 
 STATIC void indirect_map_delete(pTHX_ const OP *o) {
@@ -430,7 +461,8 @@ STATIC OP *indirect_ck_const(pTHX_ OP *o) {
  if (indirect_hint()) {
   SV *sv = cSVOPo_sv;
   if (SvPOK(sv) && (SvTYPE(sv) >= SVt_PV)) {
-   indirect_map_store(o, indirect_find(sv, PL_oldbufptr), sv);
+   const char *s = indirect_find(sv, PL_oldbufptr);
+   indirect_map_store(o, s, sv, CopLINE(&PL_compiling));
    return o;
   }
  }
@@ -495,7 +527,7 @@ STATIC OP *indirect_ck_rv2sv(pTHX_ OP *o) {
   }
 
   o = CALL_FPTR(indirect_old_ck_rv2sv)(aTHX_ o);
-  indirect_map_store(o, s, sv);
+  indirect_map_store(o, s, sv, CopLINE(&PL_compiling));
   return o;
  }
 
@@ -523,7 +555,7 @@ STATIC OP *indirect_ck_padany(pTHX_ OP *o) {
    while (s < t && isSPACE(*t)) --t;
    sv = sv_2mortal(newSVpvn("$", 1));
    sv_catpvn_nomg(sv, s, t - s + 1);
-   indirect_map_store(o, s, sv);
+   indirect_map_store(o, s, sv, CopLINE(&PL_compiling));
    return o;
   }
  }
@@ -539,18 +571,27 @@ STATIC OP *(*indirect_old_ck_method)(pTHX_ OP *) = 0;
 STATIC OP *indirect_ck_method(pTHX_ OP *o) {
  if (indirect_hint()) {
   OP *op = cUNOPo->op_first;
+  const indirect_op_info_t *oi = indirect_map_fetch(op);
+  const char *s = NULL;
+  line_t line;
   SV *sv;
-  const char *s = indirect_map_fetch(op, &sv);
-  if (!s) {
+
+  if (oi && (s = oi->pos)) {
+   sv   = sv_2mortal(newSVpvn(oi->buf, oi->len));
+   line = oi->line; /* Keep the old line so that we really point to the first */
+  } else {
    sv = cSVOPx_sv(op);
    if (!SvPOK(sv) || (SvTYPE(sv) < SVt_PV))
     goto done;
-   sv = sv_mortalcopy(sv);
-   s  = indirect_find(sv, PL_oldbufptr);
+   sv   = sv_mortalcopy(sv);
+   s    = indirect_find(sv, PL_oldbufptr);
+   line = CopLINE(&PL_compiling);
   }
+
   o = CALL_FPTR(indirect_old_ck_method)(aTHX_ o);
   /* o may now be a method_named */
-  indirect_map_store(o, s, sv);
+
+  indirect_map_store(o, s, sv, line);
   return o;
  }
 
@@ -563,6 +604,16 @@ done:
 
 /* ... ck_entersub ......................................................... */
 
+STATIC int indirect_is_indirect(const indirect_op_info_t *moi, const indirect_op_info_t *ooi) {
+ if (moi->pos > ooi->pos)
+  return 0;
+
+ if (moi->pos == ooi->pos)
+  return moi->len == ooi->len && !memcmp(moi->buf, ooi->buf, moi->len);
+
+ return 1;
+}
+
 STATIC OP *(*indirect_old_ck_entersub)(pTHX_ OP *) = 0;
 
 STATIC OP *indirect_ck_entersub(pTHX_ OP *o) {
@@ -571,9 +622,8 @@ STATIC OP *indirect_ck_entersub(pTHX_ OP *o) {
  o = CALL_FPTR(indirect_old_ck_entersub)(aTHX_ o);
 
  if (code) {
-  const char *mpos, *opos;
-  SV *mnamesv, *onamesv;
-  OP *mop, *oop;
+  const indirect_op_info_t *moi, *ooi;
+  OP     *mop, *oop;
   LISTOP *lop;
 
   oop = o;
@@ -603,38 +653,33 @@ STATIC OP *indirect_ck_entersub(pTHX_ OP *o) {
   else if (mop->op_type != OP_METHOD_NAMED)
    goto done;
 
-  mpos = indirect_map_fetch(mop, &mnamesv);
-  if (!mpos)
+  moi = indirect_map_fetch(mop);
+  if (!(moi && moi->pos))
    goto done;
 
-  opos = indirect_map_fetch(oop, &onamesv);
-  if (!opos)
+  ooi = indirect_map_fetch(oop);
+  if (!(ooi && ooi->pos))
    goto done;
 
-  if (mpos < opos) {
-   SV     *file;
-   line_t  line;
+  if (indirect_is_indirect(moi, ooi)) {
+   SV *file;
    dSP;
 
    ENTER;
    SAVETMPS;
-
-   onamesv = sv_mortalcopy(onamesv);
-   mnamesv = sv_mortalcopy(mnamesv);
 
 #ifdef USE_ITHREADS
    file = sv_2mortal(newSVpv(CopFILE(&PL_compiling), 0));
 #else
    file = sv_mortalcopy(CopFILESV(&PL_compiling));
 #endif
-   line = CopLINE(&PL_compiling);
 
    PUSHMARK(SP);
    EXTEND(SP, 4);
-   PUSHs(onamesv);
-   PUSHs(mnamesv);
+   mPUSHp(ooi->buf, ooi->len);
+   mPUSHp(moi->buf, moi->len);
    PUSHs(file);
-   mPUSHu(line);
+   mPUSHu(moi->line);
    PUTBACK;
 
    call_sv(code, G_VOID);

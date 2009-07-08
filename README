@@ -2,7 +2,7 @@ NAME
     indirect - Lexically warn about using the indirect object syntax.
 
 VERSION
-    Version 0.14
+    Version 0.15
 
 SYNOPSIS
         # In a script
@@ -12,8 +12,8 @@ SYNOPSIS
          use indirect;
          my $y = new Pear; # ok
          {
-          no indirect hook => sub { die "You really wanted $_[0]\->$_[1]" };
-          my $z = new Pineapple 'fresh'; # croaks 'You really wanted Pineapple->new'
+          no indirect hook => sub { die "You really wanted $_[0]\->$_[1] at $_[2]:$_[3]" };
+          my $z = new Pineapple 'fresh'; # croaks 'You really wanted Pineapple->new at blurp.pm:13'
          }
         }
         no indirect ':fatal';
@@ -60,7 +60,8 @@ METHODS
 
 CONSTANTS
   "I_THREADSAFE"
-    True iff the module could have been built when thread-safety features.
+    True iff the module could have been built with thread-safety features
+    enabled.
 
 CAVEATS
     The implementation was tweaked to work around several limitations of

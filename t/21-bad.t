@@ -9,7 +9,7 @@ package main;
 use strict;
 use warnings;
 
-use Test::More tests => 50 * 6 + 2;
+use Test::More tests => 52 * 6 + 2;
 
 my ($obj, $x);
 our ($y, $bloop);
@@ -17,9 +17,9 @@ our ($y, $bloop);
 sub expect {
  my ($pkg) = @_;
  qr/^warn:Indirect\s+call\s+of\s+method\s+
-     "(?:new|meh|$pkg$pkg)"
+     "(?:new|meh|feh|$pkg$pkg)"
      \s+on\s+object\s+
-     "(?:$pkg|newnew|\$(?:[xyz_\$]|(?:sploosh::)?sploosh|(?:main::)?bloop))"
+     "(?:$pkg|newnew|feh|\$(?:[xyz_\$]|(?:sploosh::)?sploosh|(?:main::)?bloop))"
      \s+at\s+\(eval\s+\d+\)\s+line\s+\d+
    /x
 }
@@ -195,6 +195,10 @@ $obj = HlaghHlagh Hlagh; # HlaghHlagh Hlagh
 $obj = new newnew;
 ####
 $obj = new newnew; # new newnew
+####
+$obj = feh feh;
+####
+$obj = feh feh; # feh feh
 ####
 new Hlagh (meh $x)
 ####

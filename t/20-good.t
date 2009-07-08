@@ -9,7 +9,7 @@ package main;
 use strict;
 use warnings;
 
-use Test::More tests => 52 * 4;
+use Test::More tests => 56 * 4;
 
 my ($obj, $pkg, $cb, $x, @a);
 our $y;
@@ -85,6 +85,14 @@ $obj = Hlagh   ->
                               new   (   "foo"
   ,    bar     
                =>        $obj       );
+####
+$obj = new->new;
+####
+$obj = new->new; # new new
+####
+$obj = new->newnew;
+####
+$obj = newnew->new;
 ####
 $obj = Hlagh->$cb;
 ####

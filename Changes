@@ -1,5 +1,11 @@
 Revision history for indirect
 
+0.15    2009-07-08 22:55 UTC
+        + Fix : Invalid constructs with the same method and package name were
+                not reported.
+        + Fix : The error line number used to point to the end of the expression
+                instead of its beginning.
+
 0.14    2009-06-04 21:55 UTC
         + Fix : Prevent bogus invalid syntaxes caused by reallocated memory
                 chunks. Thanks Andrew Main for reporting with a reproducible

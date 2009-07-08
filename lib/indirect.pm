@@ -11,13 +11,13 @@ indirect - Lexically warn about using the indirect object syntax.
 
 =head1 VERSION
 
-Version 0.14
+Version 0.15
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.14';
+ $VERSION = '0.15';
 }
 
 =head1 SYNOPSIS
@@ -29,8 +29,8 @@ BEGIN {
      use indirect;
      my $y = new Pear; # ok
      {
-      no indirect hook => sub { die "You really wanted $_[0]\->$_[1]" };
-      my $z = new Pineapple 'fresh'; # croaks 'You really wanted Pineapple->new'
+      no indirect hook => sub { die "You really wanted $_[0]\->$_[1] at $_[2]:$_[3]" };
+      my $z = new Pineapple 'fresh'; # croaks 'You really wanted Pineapple->new at blurp.pm:13'
      }
     }
     no indirect ':fatal';
@@ -126,7 +126,7 @@ sub import {
 
 =head2 C<I_THREADSAFE>
 
-True iff the module could have been built when thread-safety features.
+True iff the module could have been built with thread-safety features enabled.
 
 =head1 CAVEATS
 
