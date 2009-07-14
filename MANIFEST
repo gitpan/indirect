@@ -13,10 +13,12 @@ t/11-line.t
 t/20-good.t
 t/21-bad.t
 t/22-bad-mixed.t
+t/23-bad-notaint.t
 t/30-scope.t
 t/40-threads.t
 t/41-memory.t
 t/42-stress.t
+t/80-regressions.t
 t/91-pod.t
 t/92-pod-coverage.t
 t/95-portability-files.t

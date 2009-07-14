@@ -9,11 +9,24 @@ package main;
 use strict;
 use warnings;
 
-use Test::More tests => 56 * 4;
+use Test::More tests => 56 * 8;
 
 my ($obj, $pkg, $cb, $x, @a);
 our $y;
 sub meh;
+sub zap (&);
+
+my @warns;
+
+sub try {
+ my ($code) = @_;
+
+ @warns = ();
+ {
+  local $SIG{__WARN__} = sub { push @warns, @_ };
+  eval $code;
+ }
+}
 
 {
  local $/ = "####";
@@ -28,23 +41,30 @@ sub meh;
 
 SKIP:
   {
-   skip "$_: $skip" => 4 if eval $skip;
+   skip "$_: $skip" => 8 if eval $skip;
 
-   local $SIG{__WARN__} = sub { die 'warn:' . join(' ', @_) };
+   {
+    try "return; $prefix; use indirect; $_";
+    is $@,     '', "use indirect: $_";
+    is @warns, 0,  'no reports';
 
-   eval "die qq{ok\\n}; $prefix; use indirect; $_";
-   is($@, "ok\n", "use indirect: $_");
+    try "return; $prefix; no indirect; $_";
+    is $@,     '', "no indirect: $_";
+    is @warns, 0,  'no reports';
+   }
 
-   eval "die qq{ok\n}; $prefix; no indirect; $_";
-   is($@, "ok\n", "no indirect: $_");
+   {
+    local $_ = $_;
+    s/Hlagh/Dongs/g;
 
-   s/Hlagh/Dongs/g;
+    try "return; $prefix; use indirect; $_";
+    is $@,     '', "use indirect, defined: $_";
+    is @warns, 0,  'no reports';
 
-   eval "die qq{ok\\n}; $prefix; use indirect; $_";
-   is($@, "ok\n", "use indirect, defined: $_");
-
-   eval "die qq{ok\\n}; $prefix; no indirect; $_";
-   is($@, "ok\n", "no indirect, defined: $_");
+    try "return; $prefix; no indirect; $_";
+    is $@,     '', "no indirect, defined: $_";
+    is @warns, 0,  'no reports';
+   }
   }
  }
 }
@@ -129,21 +149,6 @@ $obj = $pkg->$cb( $obj  );
 ####
 $obj = $pkg->$cb(qw/foo bar baz/);
 ####
-$obj = new { $x };
-####
-$obj = new
-  {
-     $x  }
-  ();
-####
-$obj = new {
-  $x  } qq/foo/;
-####
-$obj = new
-   {
-      $x
-    }(qw/bar baz/);
-####
 meh;
 ####
 meh $_;
@@ -191,3 +196,11 @@ exec { $a[0] } @a;
 system $x $x, @a;
 ####
 system { $a[0] } @a;
+####
+zap { };
+####
+zap { 1; };
+####
+zap { 1; 1; };
+####
+zap { zap { }; 1; };

@@ -9,9 +9,21 @@ package main;
 use strict;
 use warnings;
 
-use Test::More tests => 3 * 4;
+use Test::More tests => 3 * 9;
 
 sub meh;
+
+my @warns;
+
+sub try {
+ my ($code) = @_;
+
+ @warns = ();
+ {
+  local $SIG{__WARN__} = sub { push @warns, @_ };
+  eval $code;
+ }
+}
 
 {
  local $/ = "####";
@@ -26,23 +38,31 @@ sub meh;
 
 SKIP:
   {
-   skip "$_: $skip" => 4 if eval $skip;
+   skip "$_: $skip" => 9 if eval $skip;
 
-   local $SIG{__WARN__} = sub { die 'warn:' . join(' ', @_) };
+   {
+    try "return; $prefix; use indirect; $_";
+    is $@,     '', "use indirect: $_";
+    is @warns, 0,  'correct number of reports';
 
-   eval "die qq{ok\\n}; $prefix; use indirect; $_";
-   is($@, "ok\n", "use indirect: $_");
+    try "return; $prefix; no indirect; $_";
+    is $@,     '', "no indirect: $_";
+    is @warns, 0,  'correct number of reports';
+   }
 
-   eval "die qq{ok\n}; $prefix; no indirect; $_";
-   is($@, "ok\n", "no indirect: $_");
+   {
+    local $_ = $_;
+    s/Hlagh/Dongs/g;
 
-   s/Hlagh/Dongs/g;
+    try "return; $prefix; use indirect; $_";
+    is $@,     '', "use indirect, defined: $_";
+    is @warns, 0,  'correct number of reports';
 
-   eval "die qq{ok\\n}; $prefix; use indirect; $_";
-   is($@, "ok\n", "use indirect, defined: $_");
-
-   eval "die qq{the code compiled but it shouldn't have\n}; $prefix; no indirect; $_";
-   like($@, qr/^warn:Indirect\s+call\s+of\s+method\s+"meh"\s+on\s+object\s+"Dongs"\s+at\s+\(eval\s+\d+\)\s+line\s+\d+/, "no indirect, defined: $_");
+    try "return; $prefix; no indirect; $_";
+    is $@,          '', "use indirect, defined: $_";
+    is @warns,      1,  'correct number of reports';
+    like $warns[0], qr/^Indirect call of method "meh" on object "Dongs" at \(eval \d+\) line \d+/, 'report 0 is correct';
+   }
   }
  }
 }

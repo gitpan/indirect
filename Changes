@@ -1,5 +1,14 @@
 Revision history for indirect
 
+0.16    2009-07-14 16:50 UTC
+        + Add : Indirect calls on blocks are now reported. For those, '{' is
+                passed to the hook as the object description.
+        + Add : The new indirect::msg() function publicizes the default
+                warning/exception message.
+        + Fix : [RT #47866] : Segfault with UTF-8 regexps.
+                Thanks Andrew Main for reporting.
+        + Tst : Cleanups.
+
 0.15    2009-07-08 22:55 UTC
         + Fix : Invalid constructs with the same method and package name were
                 not reported.

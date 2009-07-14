@@ -351,6 +351,10 @@ STATIC U32 indirect_hash = 0;
 STATIC SV *indirect_hint(pTHX) {
 #define indirect_hint() indirect_hint(aTHX)
  SV *hint;
+
+ if (IN_PERL_RUNTIME)
+  return NULL;
+
 #if I_HAS_PERL(5, 9, 5)
  hint = Perl_refcounted_he_fetch(aTHX_ PL_curcop->cop_hints_hash,
                                        NULL,
@@ -358,11 +362,13 @@ STATIC SV *indirect_hint(pTHX) {
                                        0,
                                        indirect_hash);
 #else
- SV **val = hv_fetch(GvHV(PL_hintgv), __PACKAGE__, __PACKAGE_LEN__,
+ {
+  SV **val = hv_fetch(GvHV(PL_hintgv), __PACKAGE__, __PACKAGE_LEN__,
                                                                  indirect_hash);
- if (!val)
-  return 0;
- hint = *val;
+  if (!val)
+   return 0;
+  hint = *val;
+ }
 #endif
  return indirect_detag(hint);
 }
@@ -395,13 +401,20 @@ STATIC void indirect_map_store(pTHX_ const OP *o, const char *src, SV *sv, line_
   oi->size = 0;
  }
 
- s = SvPV_const(sv, len);
+ if (sv) {
+  s = SvPV_const(sv, len);
+ } else {
+  s   = "{";
+  len = 1;
+ }
+
  if (len > oi->size) {
   Safefree(oi->buf);
   Newx(oi->buf, len, char);
   oi->size = len;
  }
  Copy(s, oi->buf, len, char);
+
  oi->len  = len;
  oi->pos  = src;
  oi->line = line;
@@ -564,6 +577,32 @@ STATIC OP *indirect_ck_padany(pTHX_ OP *o) {
  return o;
 }
 
+/* ... ck_scope ............................................................ */
+
+STATIC OP *(*indirect_old_ck_scope)  (pTHX_ OP *) = 0;
+STATIC OP *(*indirect_old_ck_lineseq)(pTHX_ OP *) = 0;
+
+STATIC OP *indirect_ck_scope(pTHX_ OP *o) {
+ OP *(*old_ck)(pTHX_ OP *) = 0;
+
+ switch (o->op_type) {
+  case OP_SCOPE:   old_ck = indirect_old_ck_scope;   break;
+  case OP_LINESEQ: old_ck = indirect_old_ck_lineseq; break;
+ }
+ o = CALL_FPTR(old_ck)(aTHX_ o);
+
+ if (indirect_hint()) {
+  indirect_map_store(o, PL_oldbufptr, NULL, CopLINE(&PL_compiling));
+  return o;
+ }
+
+ indirect_map_delete(o);
+ return o;
+}
+
+/* We don't need to clean the map entries for leave ops because they can only
+ * be created by mutating from a lineseq. */
+
 /* ... ck_method ........................................................... */
 
 STATIC OP *(*indirect_old_ck_method)(pTHX_ OP *) = 0;
@@ -643,6 +682,8 @@ STATIC OP *indirect_ck_entersub(pTHX_ OP *o) {
    case OP_CONST:
    case OP_RV2SV:
    case OP_PADSV:
+   case OP_SCOPE:
+   case OP_LEAVE:
     break;
    default:
     goto done;
@@ -726,6 +767,11 @@ BOOT:
   PL_check[OP_RV2SV]       = MEMBER_TO_FPTR(indirect_ck_rv2sv);
   indirect_old_ck_padany   = PL_check[OP_PADANY];
   PL_check[OP_PADANY]      = MEMBER_TO_FPTR(indirect_ck_padany);
+  indirect_old_ck_scope    = PL_check[OP_SCOPE];
+  PL_check[OP_SCOPE]       = MEMBER_TO_FPTR(indirect_ck_scope);
+  indirect_old_ck_lineseq  = PL_check[OP_LINESEQ];
+  PL_check[OP_LINESEQ]     = MEMBER_TO_FPTR(indirect_ck_scope);
+
   indirect_old_ck_method   = PL_check[OP_METHOD];
   PL_check[OP_METHOD]      = MEMBER_TO_FPTR(indirect_ck_method);
   indirect_old_ck_entersub = PL_check[OP_ENTERSUB];
