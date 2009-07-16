@@ -29,7 +29,7 @@ BEGIN {
 
 sub expect {
  my ($pkg) = @_;
- return qr/^Indirect\s+call\s+of\s+method\s+"new"\s+on\s+object\s+"$pkg"\s+at\s+\(eval\s+\d+\)\s+line\s+\d+/;
+ qr/^Indirect call of method "new" on object "$pkg" at \(eval \d+\) line \d+/;
 }
 
 {
@@ -43,7 +43,7 @@ sub expect {
     my $class = "Coconut$tid";
     my @warns;
     {
-     local $SIG{__WARN__} = sub { push @warns, "@_" };
+     local $SIG{__WARN__} = sub { push @warns, @_ };
      eval 'die "the code compiled but it shouldn\'t have\n";
            no indirect ":fatal"; my $x = new ' . $class . ' 1, 2;';
     }
@@ -60,10 +60,11 @@ SKIP:
     my $class = "Pineapple$tid";
     my @warns;
     {
-     local $SIG{__WARN__} = sub { push @warns, "@_" };
-     eval 'die "ok\n"; my $y = new ' . $class . ' 1, 2;';
+     local $SIG{__WARN__} = sub { push @warns, @_ };
+     eval 'return; my $y = new ' . $class . ' 1, 2;';
     }
-    is             $@, "ok\n",
+    is $@, '',
+             "\"no indirect\" propagated into eval in thread $tid didn't croak";
     my $first = shift @warns;
     like $first || '', expect($class),
               "\"no indirect\" propagated into eval in thread $tid warned once";

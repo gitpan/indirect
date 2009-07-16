@@ -25,5 +25,7 @@ t/95-portability-files.t
 t/99-kwalitee.t
 t/lib/indirect/Test0/Fffff/Vvvvvvv.pm
 t/lib/indirect/Test0/Oooooo/Pppppppp.pm
+t/lib/indirect/Test1/il1.pm
+t/lib/indirect/Test1/il2.pm
 t/lib/indirect/TestRequired1.pm
 t/lib/indirect/TestRequired2.pm

@@ -2,7 +2,7 @@ NAME
     indirect - Lexically warn about using the indirect object syntax.
 
 VERSION
-    Version 0.16
+    Version 0.17
 
 SYNOPSIS
         # In a script
@@ -93,6 +93,9 @@ CAVEATS
     With 5.8 perls, the pragma does not propagate into "eval STRING". This
     is due to a shortcoming in the way perl handles the hints hash, which is
     addressed in perl 5.10.
+
+    The search for indirect method calls happens before constant folding.
+    Hence "my $x = new Class if 0" will be caught.
 
 DEPENDENCIES
     perl 5.8.

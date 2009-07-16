@@ -11,11 +11,11 @@ use warnings;
 
 my ($tests, $reports);
 BEGIN {
- $tests   = 60;
- $reports = 68;
+ $tests   = 61;
+ $reports = 69;
 }
 
-use Test::More tests => 3 * (4 * $tests + $reports) + 2;
+use Test::More tests => 3 * (4 * $tests + $reports) + 4;
 
 my ($obj, $x);
 our ($y, $bloop);
@@ -116,16 +116,26 @@ SKIP:
 }
 
 eval {
- my $warn;
- local $SIG{__WARN__} = sub { $warn = join ' ', @_ };
- eval "die qq{ok\n}; no indirect 'hlagh'; \$obj = new Hlagh1;";
- is($@, "ok\n", 'no indirect "hlagh" didn\'t croak');
- like($warn, qr/^Indirect\s+call\s+of\s+method\s+"new"\s+on\s+object\s+"Hlagh1"/, 'no indirect "hlagh" enables the pragma');
+ my @warns;
+ {
+  local $SIG{__WARN__} = sub { push @warns, @_ };
+  eval "return; no indirect 'hlagh'; \$obj = new Hlagh1;";
+ }
+ is        $@,      '',  'no indirect "hlagh" didn\'t croak';
+ is        @warns,  1,   'only one warning';
+ my $warn = shift @warns;
+ like      $warn,   qr/^Indirect call of method "new" on object "Hlagh1"/,
+                         'no indirect "hlagh" enables the pragma';
+ is_deeply \@warns, [ ], 'nothing more';
 }
 
 __DATA__
 
 $obj = new Hlagh;
+----
+[ 'new', 'Hlagh' ]
+####
+$obj = new Hlagh if 0;
 ----
 [ 'new', 'Hlagh' ]
 ####

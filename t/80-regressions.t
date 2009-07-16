@@ -13,6 +13,6 @@ sub run_perl {
 }
 
 {
- my $status = run_perl 'no indirect; print "a\x{100}b" =~ /\A[\x00-\x7f]*\z/;';
+ my $status = run_perl 'no indirect; qq{a\x{100}b} =~ /\A[\x00-\x7f]*\z/;';
  is $status, 0, 'RT #47866';
 }

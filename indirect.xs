@@ -35,6 +35,10 @@
 # define SvPVX_const SvPVX
 #endif
 
+#ifndef SvREFCNT_inc_simple_NN
+# define SvREFCNT_inc_simple_NN SvREFCNT_inc
+#endif
+
 #ifndef sv_catpvn_nomg
 # define sv_catpvn_nomg sv_catpvn
 #endif
@@ -260,12 +264,21 @@ STATIC void indirect_thread_cleanup(pTHX_ void *ud) {
 STATIC SV *indirect_tag(pTHX_ SV *value) {
 #define indirect_tag(V) indirect_tag(aTHX_ (V))
  indirect_hint_t *h;
+ SV *code = NULL;
  dMY_CXT;
 
- value = SvOK(value) && SvROK(value) ? SvRV(value) : NULL;
+ if (SvOK(value) && SvROK(value)) {
+  value = SvRV(value);
+  if (SvTYPE(value) >= SVt_PVCV) {
+   code = value;
+   if (CvANON(code) && !CvCLONED(code))
+    CvCLONE_on(code);
+   SvREFCNT_inc_simple_NN(code);
+  }
+ }
 
  h = PerlMemShared_malloc(sizeof *h);
- h->code = SvREFCNT_inc(value);
+ h->code = code;
 
 #if I_WORKAROUND_REQUIRE_PROPAGATION
  {
@@ -335,7 +348,7 @@ STATIC SV *indirect_tag(pTHX_ SV *value) {
 
  if (SvOK(value) && SvROK(value)) {
   value = SvRV(value);
-  SvREFCNT_inc(value);
+  SvREFCNT_inc_simple_NN(value);
   tag = PTR2UV(value);
  }
 

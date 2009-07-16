@@ -11,13 +11,13 @@ indirect - Lexically warn about using the indirect object syntax.
 
 =head1 VERSION
 
-Version 0.16
+Version 0.17
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.16';
+ $VERSION = '0.17';
 }
 
 =head1 SYNOPSIS
@@ -161,6 +161,9 @@ C<meth $obj> (no semicolon) at the end of a file won't be seen as an indirect ob
 
 With 5.8 perls, the pragma does not propagate into C<eval STRING>.
 This is due to a shortcoming in the way perl handles the hints hash, which is addressed in perl 5.10.
+
+The search for indirect method calls happens before constant folding.
+Hence C<my $x = new Class if 0> will be caught.
 
 =head1 DEPENDENCIES
 
