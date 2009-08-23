@@ -11,13 +11,13 @@ indirect - Lexically warn about using the indirect object syntax.
 
 =head1 VERSION
 
-Version 0.17
+Version 0.18
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.17';
+ $VERSION = '0.18';
 }
 
 =head1 SYNOPSIS
@@ -58,8 +58,12 @@ This module is B<not> a source filter.
 =cut
 
 BEGIN {
- require XSLoader;
- XSLoader::load(__PACKAGE__, $VERSION);
+ if ($ENV{PERL_INDIRECT_PM_DISABLE}) {
+  *_tag = sub ($) { 1 };
+ } else {
+  require XSLoader;
+  XSLoader::load(__PACKAGE__, $VERSION);
+ }
 }
 
 =head1 METHODS
@@ -152,6 +156,16 @@ The default warning/exception message thrown when an indirect call on an object 
 =head2 C<Indirect call of method "%s" on a block at %s line %d.>
 
 The default warning/exception message thrown when an indirect call on a block is found.
+
+=head1 ENVIRONMENT
+
+=head2 C<PERL_INDIRECT_PM_DISABLE>
+
+If this environment variable is set to true when the pragma is used for the first time, the XS code won't be loaded and, although the C<'indirect'> lexical hint will be set to true in the scope of use, the pragma itself won't do anything.
+This is useful for disabling C<indirect> in production environments.
+
+Note that clearing this variable after C<indirect> was loaded has no effect.
+If you want to reenable the pragma later, you also need to reload it by deleting the C<'indirect.pm'> entry from C<%INC>.
 
 =head1 CAVEATS
 

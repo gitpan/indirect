@@ -11,6 +11,8 @@ use warnings;
 
 use Test::More tests => 56 * 8;
 
+BEGIN { delete $ENV{PERL_INDIRECT_PM_DISABLE} }
+
 my ($obj, $pkg, $cb, $x, @a);
 our $y;
 sub meh;

@@ -8,6 +8,8 @@ BEGIN { $count = 1_000 }
 
 use Test::More tests => 2 * $count;
 
+BEGIN { delete $ENV{PERL_INDIRECT_PM_DISABLE} }
+
 for (1 .. $count) {
  my @errs;
  {

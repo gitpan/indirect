@@ -5,6 +5,8 @@ use warnings;
 
 use Test::More tests => 1;
 
+BEGIN { delete $ENV{PERL_INDIRECT_PM_DISABLE} }
+
 {
  my @warns;
  {

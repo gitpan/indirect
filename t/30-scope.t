@@ -8,6 +8,8 @@ BEGIN { $tests = 18 }
 
 use Test::More tests => (1 + $tests + 1) + 3 + 3 + 3 + 5 + 1;
 
+BEGIN { delete $ENV{PERL_INDIRECT_PM_DISABLE} }
+
 use lib 't/lib';
 
 my %wrong = map { $_ => 1 } 2, 3, 5, 7, 9, 10, 14, 15, 17, 18;

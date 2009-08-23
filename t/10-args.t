@@ -5,6 +5,8 @@ use warnings;
 
 use Test::More tests => 4 + 1 + 1;
 
+BEGIN { delete $ENV{PERL_INDIRECT_PM_DISABLE} }
+
 sub expect {
  my ($pkg) = @_;
  qr/^Indirect call of method "new" on object "$pkg" at \(eval \d+\) line \d+/;

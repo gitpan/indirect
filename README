@@ -2,7 +2,7 @@ NAME
     indirect - Lexically warn about using the indirect object syntax.
 
 VERSION
-    Version 0.17
+    Version 0.18
 
 SYNOPSIS
         # In a script
@@ -79,6 +79,18 @@ DIAGNOSTICS
   "Indirect call of method "%s" on a block at %s line %d."
     The default warning/exception message thrown when an indirect call on a
     block is found.
+
+ENVIRONMENT
+  "PERL_INDIRECT_PM_DISABLE"
+    If this environment variable is set to true when the pragma is used for
+    the first time, the XS code won't be loaded and, although the 'indirect'
+    lexical hint will be set to true in the scope of use, the pragma itself
+    won't do anything. This is useful for disabling "indirect" in production
+    environments.
+
+    Note that clearing this variable after "indirect" was loaded has no
+    effect. If you want to reenable the pragma later, you also need to
+    reload it by deleting the 'indirect.pm' entry from %INC.
 
 CAVEATS
     The implementation was tweaked to work around several limitations of

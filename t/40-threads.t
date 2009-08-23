@@ -18,6 +18,7 @@ use threads;
 use Test::More;
 
 BEGIN {
+ delete $ENV{PERL_INDIRECT_PM_DISABLE};
  require indirect;
  if (indirect::I_THREADSAFE()) {
   plan tests => 10 * 2 * (2 + 3);

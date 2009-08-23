@@ -17,6 +17,8 @@ BEGIN {
 
 use Test::More tests => 3 * (4 * $tests + $reports) + 4;
 
+BEGIN { delete $ENV{PERL_INDIRECT_PM_DISABLE} }
+
 my ($obj, $x);
 our ($y, $bloop);
 

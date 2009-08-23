@@ -1,5 +1,9 @@
 Revision history for indirect
 
+0.18    2009-08-23 16:15 UTC
+        + Add : When set, the PERL_INDIRECT_PM_DISABLE environment variable
+                disables the pragma globally.
+
 0.17    2009-07-16 12:10 UTC
         + Fix : [RT #47902] : "no indirect" leaking again.
                 This actually turned out to be a bug in how the hook coderefs
