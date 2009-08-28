@@ -11,6 +11,11 @@ if ($^O eq 'MSWin32' && $^V lt v5.9.0) {
  push @DEFINES, '-DI_MULTIPLICITY=0';
 }
 
+# Fork emulation got "fixed" in 5.10.1
+if ($^O eq 'MSWin32' && $^V lt v5.10.1) {
+ push @DEFINES, '-DI_FORKSAFE=0';
+}
+
 @DEFINES = (DEFINE => join ' ', @DEFINES) if @DEFINES;
 
 my $dist = 'indirect';

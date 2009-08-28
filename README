@@ -2,7 +2,7 @@ NAME
     indirect - Lexically warn about using the indirect object syntax.
 
 VERSION
-    Version 0.18
+    Version 0.19
 
 SYNOPSIS
         # In a script
@@ -71,6 +71,11 @@ CONSTANTS
     True iff the module could have been built with thread-safety features
     enabled.
 
+  "I_FORKSAFE"
+    True iff this module could have been built with fork-safety features
+    enabled. This will always be true except on Windows where it's false for
+    perl 5.10.0 and below .
+
 DIAGNOSTICS
   "Indirect call of method "%s" on object "%s" at %s line %d."
     The default warning/exception message thrown when an indirect call on an
@@ -85,8 +90,9 @@ ENVIRONMENT
     If this environment variable is set to true when the pragma is used for
     the first time, the XS code won't be loaded and, although the 'indirect'
     lexical hint will be set to true in the scope of use, the pragma itself
-    won't do anything. This is useful for disabling "indirect" in production
-    environments.
+    won't do anything. In this case, the pragma will always be considered to
+    be thread-safe, and as such "I_THREADSAFE" will be true. This is useful
+    for disabling "indirect" in production environments.
 
     Note that clearing this variable after "indirect" was loaded has no
     effect. If you want to reenable the pragma later, you also need to

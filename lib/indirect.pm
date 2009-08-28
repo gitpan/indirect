@@ -11,13 +11,13 @@ indirect - Lexically warn about using the indirect object syntax.
 
 =head1 VERSION
 
-Version 0.18
+Version 0.19
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.18';
+ $VERSION = '0.19';
 }
 
 =head1 SYNOPSIS
@@ -60,6 +60,8 @@ This module is B<not> a source filter.
 BEGIN {
  if ($ENV{PERL_INDIRECT_PM_DISABLE}) {
   *_tag = sub ($) { 1 };
+  *I_THREADSAFE = sub () { 1 };
+  *I_FORKSAFE   = sub () { 1 };
  } else {
   require XSLoader;
   XSLoader::load(__PACKAGE__, $VERSION);
@@ -147,6 +149,11 @@ sub msg {
 
 True iff the module could have been built with thread-safety features enabled.
 
+=head2 C<I_FORKSAFE>
+
+True iff this module could have been built with fork-safety features enabled.
+This will always be true except on Windows where it's false for perl 5.10.0 and below .
+
 =head1 DIAGNOSTICS
 
 =head2 C<Indirect call of method "%s" on object "%s" at %s line %d.>
@@ -162,6 +169,7 @@ The default warning/exception message thrown when an indirect call on a block is
 =head2 C<PERL_INDIRECT_PM_DISABLE>
 
 If this environment variable is set to true when the pragma is used for the first time, the XS code won't be loaded and, although the C<'indirect'> lexical hint will be set to true in the scope of use, the pragma itself won't do anything.
+In this case, the pragma will always be considered to be thread-safe, and as such L</I_THREADSAFE> will be true.
 This is useful for disabling C<indirect> in production environments.
 
 Note that clearing this variable after C<indirect> was loaded has no effect.

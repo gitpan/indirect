@@ -1,5 +1,22 @@
 Revision history for indirect
 
+0.19    2009-08-28 18:40 UTC
+        + Add : The new constant I_FORKSAFE can be tested to know whether the
+                module will behave nicely when fork()ing. It's currently always
+                true except on Windows where you need perl 5.10.1 for it to be
+                true.
+        + Fix : I_THREADSAFE and I_FORKSAFE ought to be true when
+                PERL_INDIRECT_PM_DISABLE is set.
+        + Fix : The pragma could still leak if you passed to the "hook" option
+                a reference to the same (named) subroutine from two different
+                require scopes. The fix also provides a better solution for
+                RT #47902.
+        + Fix : Segfaults when indirect is loaded for the first time from
+                inside a thread.
+        + Fix : Leaks of memory associated with the root interpreter.
+        + Opt : Less memory will be used for non-threaded perls version 5.10.0
+                and below, and for threaded perls from version 5.10.1.
+
 0.18    2009-08-23 16:15 UTC
         + Add : When set, the PERL_INDIRECT_PM_DISABLE environment variable
                 disables the pragma globally.

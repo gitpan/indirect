@@ -95,6 +95,11 @@
 
 /* ... Thread safety and multiplicity ...................................... */
 
+/* Safe unless stated otherwise in Makefile.PL */
+#ifndef I_FORKSAFE
+# define I_FORKSAFE 1
+#endif
+
 #ifndef I_MULTIPLICITY
 # if defined(MULTIPLICITY) || defined(PERL_IMPLICIT_CONTEXT)
 #  define I_MULTIPLICITY 1
@@ -133,21 +138,39 @@
 
 /* ... Thread-safe hints ................................................... */
 
-/* If any of those are true, we need to store the hint in a global table. */
-
-#if I_THREADSAFE || I_WORKAROUND_REQUIRE_PROPAGATION
+#if I_WORKAROUND_REQUIRE_PROPAGATION
 
 typedef struct {
  SV  *code;
-#if I_WORKAROUND_REQUIRE_PROPAGATION
  I32  requires;
-#endif
 } indirect_hint_t;
 
-#define PTABLE_NAME ptable_hints
+#define I_HINT_STRUCT 1
 
-#define PTABLE_VAL_FREE(V) \
-   { indirect_hint_t *h = (V); SvREFCNT_dec(h->code); PerlMemShared_free(h); }
+#define I_HINT_CODE(H) ((H)->code)
+
+#define I_HINT_FREE(H) {   \
+ indirect_hint_t *h = (H); \
+ SvREFCNT_dec(h->code);    \
+ PerlMemShared_free(h);    \
+}
+
+#else  /*  I_WORKAROUND_REQUIRE_PROPAGATION */
+
+typedef SV indirect_hint_t;
+
+#define I_HINT_STRUCT 0
+
+#define I_HINT_CODE(H) (H)
+
+#define I_HINT_FREE(H) SvREFCNT_dec(H);
+
+#endif /* !I_WORKAROUND_REQUIRE_PROPAGATION */
+
+#if I_THREADSAFE
+
+#define PTABLE_NAME        ptable_hints
+#define PTABLE_VAL_FREE(V) I_HINT_FREE(V)
 
 #define pPTBL  pTHX
 #define pPTBL_ pTHX_
@@ -159,7 +182,7 @@ typedef struct {
 #define ptable_hints_store(T, K, V) ptable_hints_store(aTHX_ (T), (K), (V))
 #define ptable_hints_free(T)        ptable_hints_free(aTHX_ (T))
 
-#endif /* I_THREADSAFE || I_WORKAROUND_REQUIRE_PROPAGATION */
+#endif /* I_THREADSAFE */
 
 /* Define the op->str ptable here because we need to be able to clean it during
  * thread cleanup. */
@@ -188,14 +211,12 @@ typedef struct {
 #define MY_CXT_KEY __PACKAGE__ "::_guts" XS_VERSION
 
 typedef struct {
-#if I_THREADSAFE || I_WORKAROUND_REQUIRE_PROPAGATION
+#if I_THREADSAFE
  ptable     *tbl; /* It really is a ptable_hints */
+ tTHX        owner;
 #endif
  ptable     *map;
  const char *linestr;
-#if I_THREADSAFE
- tTHX        owner;
-#endif
 } my_cxt_t;
 
 START_MY_CXT
@@ -228,15 +249,28 @@ STATIC SV *indirect_clone(pTHX_ SV *sv, tTHX owner) {
 STATIC void indirect_ptable_clone(pTHX_ ptable_ent *ent, void *ud_) {
  my_cxt_t        *ud = ud_;
  indirect_hint_t *h1 = ent->val;
- indirect_hint_t *h2 = PerlMemShared_malloc(sizeof *h2);
+ indirect_hint_t *h2;
 
- *h2 = *h1;
+ if (ud->owner == aTHX)
+  return;
 
- if (ud->owner != aTHX)
-  h2->code = indirect_clone(h1->code, ud->owner);
+#if I_HINT_STRUCT
+
+ h2           = PerlMemShared_malloc(sizeof *h2);
+ h2->code     = indirect_clone(h1->code, ud->owner);
+ SvREFCNT_inc(h2->code);
+#if I_WORKAROUND_REQUIRE_PROPAGATION
+ h2->requires = h1->requires;
+#endif
+
+#else  /*  I_HINT_STRUCT */
+
+ h2 = indirect_clone(h1, ud->owner);
+ SvREFCNT_inc(h2);
+
+#endif /* !I_HINT_STRUCT */
 
  ptable_hints_store(ud->tbl, ent->key, h2);
- SvREFCNT_inc(h2->code);
 }
 
 STATIC void indirect_thread_cleanup(pTHX_ void *);
@@ -259,24 +293,21 @@ STATIC void indirect_thread_cleanup(pTHX_ void *ud) {
 
 #endif /* I_THREADSAFE */
 
-#if I_THREADSAFE || I_WORKAROUND_REQUIRE_PROPAGATION
-
 STATIC SV *indirect_tag(pTHX_ SV *value) {
 #define indirect_tag(V) indirect_tag(aTHX_ (V))
  indirect_hint_t *h;
  SV *code = NULL;
  dMY_CXT;
 
- if (SvOK(value) && SvROK(value)) {
+ if (SvROK(value)) {
   value = SvRV(value);
   if (SvTYPE(value) >= SVt_PVCV) {
    code = value;
-   if (CvANON(code) && !CvCLONED(code))
-    CvCLONE_on(code);
    SvREFCNT_inc_simple_NN(code);
   }
  }
 
+#if I_HINT_STRUCT
  h = PerlMemShared_malloc(sizeof *h);
  h->code = code;
 
@@ -298,14 +329,20 @@ STATIC SV *indirect_tag(pTHX_ SV *value) {
 
   h->requires = requires;
  }
-#endif
+#endif /* I_WORKAROUND_REQUIRE_PROPAGATION */
 
+#else  /*  I_HINT_STRUCT */
+ h = code;
+#endif /* !I_HINT_STRUCT */
+
+#if I_THREADSAFE
  /* We only need for the key to be an unique tag for looking up the value later.
   * Allocated memory provides convenient unique identifiers, so that's why we
-  * use the value pointer as the key itself. */
- ptable_hints_store(MY_CXT.tbl, value, h);
+  * use the hint as the key itself. */
+ ptable_hints_store(MY_CXT.tbl, h, h);
+#endif /* I_THREADSAFE */
 
- return newSVuv(PTR2UV(value));
+ return newSViv(PTR2IV(h));
 }
 
 STATIC SV *indirect_detag(pTHX_ const SV *hint) {
@@ -313,10 +350,13 @@ STATIC SV *indirect_detag(pTHX_ const SV *hint) {
  indirect_hint_t *h;
  dMY_CXT;
 
- if (!(hint && SvOK(hint) && SvIOK(hint)))
+ if (!(hint && SvIOK(hint)))
   return NULL;
 
- h = ptable_fetch(MY_CXT.tbl, INT2PTR(void *, SvUVX(hint)));
+ h = INT2PTR(indirect_hint_t *, SvIVX(hint));
+#if I_THREADSAFE
+ h = ptable_fetch(MY_CXT.tbl, h);
+#endif /* I_THREADSAFE */
 
 #if I_WORKAROUND_REQUIRE_PROPAGATION
  {
@@ -335,29 +375,10 @@ STATIC SV *indirect_detag(pTHX_ const SV *hint) {
    }
   }
  }
-#endif
+#endif /* I_WORKAROUND_REQUIRE_PROPAGATION */
 
- return h->code;
+ return I_HINT_CODE(h);
 }
-
-#else
-
-STATIC SV *indirect_tag(pTHX_ SV *value) {
-#define indirect_tag(V) indirect_tag(aTHX_ (V))
- UV tag = 0;
-
- if (SvOK(value) && SvROK(value)) {
-  value = SvRV(value);
-  SvREFCNT_inc_simple_NN(value);
-  tag = PTR2UV(value);
- }
-
- return newSVuv(tag);
-}
-
-#define indirect_detag(H) (((H) && SvOK(H)) ? INT2PTR(SV *, SvUVX(H)) : NULL)
-
-#endif /* I_THREADSAFE || I_WORKAROUND_REQUIRE_PROPAGATION */
 
 STATIC U32 indirect_hash = 0;
 
@@ -751,6 +772,81 @@ done:
 
 STATIC U32 indirect_initialized = 0;
 
+STATIC void indirect_teardown(pTHX_ void *root) {
+ dMY_CXT;
+
+ if (!indirect_initialized)
+  return;
+
+#if I_MULTIPLICITY
+ if (aTHX != root)
+  return;
+#endif
+
+ ptable_free(MY_CXT.map);
+#if I_THREADSAFE
+ ptable_hints_free(MY_CXT.tbl);
+#endif
+
+ PL_check[OP_CONST]       = MEMBER_TO_FPTR(indirect_old_ck_const);
+ indirect_old_ck_const    = 0;
+ PL_check[OP_RV2SV]       = MEMBER_TO_FPTR(indirect_old_ck_rv2sv);
+ indirect_old_ck_rv2sv    = 0;
+ PL_check[OP_PADANY]      = MEMBER_TO_FPTR(indirect_old_ck_padany);
+ indirect_old_ck_padany   = 0;
+ PL_check[OP_SCOPE]       = MEMBER_TO_FPTR(indirect_old_ck_scope);
+ indirect_old_ck_scope    = 0;
+ PL_check[OP_LINESEQ]     = MEMBER_TO_FPTR(indirect_old_ck_lineseq);
+ indirect_old_ck_lineseq  = 0;
+
+ PL_check[OP_METHOD]      = MEMBER_TO_FPTR(indirect_old_ck_method);
+ indirect_old_ck_method   = 0;
+ PL_check[OP_ENTERSUB]    = MEMBER_TO_FPTR(indirect_old_ck_entersub);
+ indirect_old_ck_entersub = 0;
+
+ indirect_initialized = 0;
+}
+
+STATIC void indirect_setup(pTHX) {
+#define indirect_setup() indirect_setup(aTHX)
+ if (indirect_initialized)
+  return;
+
+ MY_CXT_INIT;
+#if I_THREADSAFE
+ MY_CXT.tbl     = ptable_new();
+ MY_CXT.owner   = aTHX;
+#endif
+ MY_CXT.map     = ptable_new();
+ MY_CXT.linestr = NULL;
+
+ indirect_old_ck_const    = PL_check[OP_CONST];
+ PL_check[OP_CONST]       = MEMBER_TO_FPTR(indirect_ck_const);
+ indirect_old_ck_rv2sv    = PL_check[OP_RV2SV];
+ PL_check[OP_RV2SV]       = MEMBER_TO_FPTR(indirect_ck_rv2sv);
+ indirect_old_ck_padany   = PL_check[OP_PADANY];
+ PL_check[OP_PADANY]      = MEMBER_TO_FPTR(indirect_ck_padany);
+ indirect_old_ck_scope    = PL_check[OP_SCOPE];
+ PL_check[OP_SCOPE]       = MEMBER_TO_FPTR(indirect_ck_scope);
+ indirect_old_ck_lineseq  = PL_check[OP_LINESEQ];
+ PL_check[OP_LINESEQ]     = MEMBER_TO_FPTR(indirect_ck_scope);
+
+ indirect_old_ck_method   = PL_check[OP_METHOD];
+ PL_check[OP_METHOD]      = MEMBER_TO_FPTR(indirect_ck_method);
+ indirect_old_ck_entersub = PL_check[OP_ENTERSUB];
+ PL_check[OP_ENTERSUB]    = MEMBER_TO_FPTR(indirect_ck_entersub);
+
+#if I_MULTIPLICITY
+ call_atexit(indirect_teardown, aTHX);
+#else
+ call_atexit(indirect_teardown, NULL);
+#endif
+
+ indirect_initialized = 1;
+}
+
+STATIC U32 indirect_booted = 0;
+
 /* --- XS ------------------------------------------------------------------ */
 
 MODULE = indirect      PACKAGE = indirect
@@ -759,40 +855,17 @@ PROTOTYPES: ENABLE
 
 BOOT:
 {
- if (!indirect_initialized++) {
+ if (!indirect_booted++) {
   HV *stash;
-
-  MY_CXT_INIT;
-  MY_CXT.map     = ptable_new();
-  MY_CXT.linestr = NULL;
-#if I_THREADSAFE || I_WORKAROUND_REQUIRE_PROPAGATION
-  MY_CXT.tbl     = ptable_new();
-#endif
-#if I_THREADSAFE
-  MY_CXT.owner   = aTHX;
-#endif
 
   PERL_HASH(indirect_hash, __PACKAGE__, __PACKAGE_LEN__);
 
-  indirect_old_ck_const    = PL_check[OP_CONST];
-  PL_check[OP_CONST]       = MEMBER_TO_FPTR(indirect_ck_const);
-  indirect_old_ck_rv2sv    = PL_check[OP_RV2SV];
-  PL_check[OP_RV2SV]       = MEMBER_TO_FPTR(indirect_ck_rv2sv);
-  indirect_old_ck_padany   = PL_check[OP_PADANY];
-  PL_check[OP_PADANY]      = MEMBER_TO_FPTR(indirect_ck_padany);
-  indirect_old_ck_scope    = PL_check[OP_SCOPE];
-  PL_check[OP_SCOPE]       = MEMBER_TO_FPTR(indirect_ck_scope);
-  indirect_old_ck_lineseq  = PL_check[OP_LINESEQ];
-  PL_check[OP_LINESEQ]     = MEMBER_TO_FPTR(indirect_ck_scope);
-
-  indirect_old_ck_method   = PL_check[OP_METHOD];
-  PL_check[OP_METHOD]      = MEMBER_TO_FPTR(indirect_ck_method);
-  indirect_old_ck_entersub = PL_check[OP_ENTERSUB];
-  PL_check[OP_ENTERSUB]    = MEMBER_TO_FPTR(indirect_ck_entersub);
-
   stash = gv_stashpvn(__PACKAGE__, __PACKAGE_LEN__, 1);
   newCONSTSUB(stash, "I_THREADSAFE", newSVuv(I_THREADSAFE));
+  newCONSTSUB(stash, "I_FORKSAFE",   newSVuv(I_FORKSAFE));
  }
+
+ indirect_setup();
 }
 
 #if I_THREADSAFE

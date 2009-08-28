@@ -6,7 +6,7 @@ use warnings;
 my $tests;
 BEGIN { $tests = 18 }
 
-use Test::More tests => (1 + $tests + 1) + 3 + 3 + 3 + 5 + 1;
+use Test::More tests => (1 + $tests + 1) + 3 + 3 + 3 + 5 + 4 + 1;
 
 BEGIN { delete $ENV{PERL_INDIRECT_PM_DISABLE} }
 
@@ -115,6 +115,32 @@ sub expect {
  $w = shift @w;
  like       $w, expect('Bar'), 'second require test caught error for Bar';
  is_deeply \@w, [ ],           'second require test doesn\'t have more errors';
+}
+
+{
+ local @main::new;
+ my (@err, @w);
+ sub cb3 { push @err, $_[0] };
+ local $SIG{__WARN__} = sub { push @w, join '', 'warn:', @_ };
+ eval <<' TESTREQUIRED3';
+  {
+   package indirect::TestRequired3Z;
+   sub new { push @main::new, __PACKAGE__ }
+   no indirect hook => \&main::cb3;
+   use indirect::TestRequired3X;
+   use indirect::TestRequired3Y;
+   new indirect::TestRequired3Z;
+  }
+ TESTREQUIRED3
+ @w = grep !/^warn:Attempt\s+to\s+free\s+unreferenced/, @w if $] <= 5.008003;
+ is        $@,          '',
+           "pragma leak when reusing callback test doesn't croak prematurely";
+ is_deeply \@w,         [ ],
+           "pragma leak when reusing callback test doesn't warn";
+ is_deeply \@err,       [ map "indirect::TestRequired3$_", qw/X Z/ ],
+           "pragma leak when reusing callback test caught the right errors";
+ is_deeply \@main::new, [ map "indirect::TestRequired3$_", qw/X Y Z/ ],
+           "pragma leak when reusing callback test ran the three constructors";
 }
 
 {
