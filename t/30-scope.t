@@ -6,7 +6,7 @@ use warnings;
 my $tests;
 BEGIN { $tests = 18 }
 
-use Test::More tests => (1 + $tests + 1) + 3 + 3 + 3 + 5 + 4 + 1;
+use Test::More tests => (1 + $tests + 1) + 3 + 3 + 3 + 5 + 4 + 3;
 
 BEGIN { delete $ENV{PERL_INDIRECT_PM_DISABLE} }
 
@@ -152,6 +152,20 @@ sub expect {
  SNIP
  is $@, '', 'RT #47902';
 }
+
+{
+ my $err = eval <<' SNIP';
+  use indirect::TestRequired4::a0;
+  indirect::TestRequired4::a0::error();
+ SNIP
+ like $err, qr/^Can't locate object method "new" via package "X"/, 'RT #50570';
+}
+
+# This test must be in the topmost scope
+BEGIN { eval 'use indirect::TestRequired5::a0' }
+my $err = indirect::TestRequired5::a0::error();
+like $err, qr/^Can't locate object method "new" via package "X"/,
+           'identifying requires by their eval context pointer is not enough';
 
 __DATA__
 my $a = new P1;

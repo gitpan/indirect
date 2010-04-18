@@ -1,5 +1,14 @@
 Revision history for indirect
 
+0.20    2010-04-18 21:25 UTC
+        + Fix : [RT #50570] : "indirect" leaking into LWP.
+                Thanks Andrew Main for reporting.
+                More generally, the require propagation workaround on 5.8-5.10.0
+                has been overhauled, and other scope leaks should be fixed.
+        + Fix : Test failures with 5.12 on Windows where Strawberry Perl crashes
+                because the SystemRoot environment variable is missing.
+        + Fix : Work around Kwalitee test misfailures.
+
 0.19    2009-08-28 18:40 UTC
         + Add : The new constant I_FORKSAFE can be tested to know whether the
                 module will behave nicely when fork()ing. It's currently always

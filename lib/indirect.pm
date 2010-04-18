@@ -11,13 +11,13 @@ indirect - Lexically warn about using the indirect object syntax.
 
 =head1 VERSION
 
-Version 0.19
+Version 0.20
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.19';
+ $VERSION = '0.20';
 }
 
 =head1 SYNOPSIS
@@ -48,7 +48,9 @@ BEGIN {
 =head1 DESCRIPTION
 
 When enabled (or disabled as some may prefer to say, since you actually turn it on by calling C<no indirect>), this pragma warns about indirect object syntax constructs that may have slipped into your code.
+
 This syntax is now considered harmful, since its parsing has many quirks and its use is error prone (when C<swoosh> isn't defined, C<swoosh $x> actually compiles to C<< $x->swoosh >>).
+In L<http://www.shadowcat.co.uk/blog/matt-s-trout/indirect-but-still-fatal>, Matt S. Trout gives an example of an indirect construct that can cause a particularly bewildering error.
 
 It currently does not warn for core functions (C<print>, C<say>, C<exec> or C<system>).
 This may change in the future, or may be added as optional features that would be enabled by passing options to C<unimport>.
@@ -220,7 +222,7 @@ Andrew Main and Florian Ragwitz, for testing on real-life code and reporting iss
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2008-2009 Vincent Pit, all rights reserved.
+Copyright 2008,2009,2010 Vincent Pit, all rights reserved.
 
 This program is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
 

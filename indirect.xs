@@ -61,6 +61,20 @@
 
 #define I_HAS_PERL(R, V, S) (PERL_REVISION > (R) || (PERL_REVISION == (R) && (PERL_VERSION > (V) || (PERL_VERSION == (V) && (PERL_SUBVERSION >= (S))))))
 
+#undef ENTERn
+#if defined(ENTER_with_name) && !I_HAS_PERL(5, 11, 4)
+# define ENTERn(N) ENTER_with_name(N)
+#else
+# define ENTERn(N) ENTER
+#endif
+
+#undef LEAVEn
+#if defined(LEAVE_with_name) && !I_HAS_PERL(5, 11, 4)
+# define LEAVEn(N) LEAVE_with_name(N)
+#else
+# define LEAVEn(N) LEAVE
+#endif
+
 #if I_HAS_PERL(5, 10, 0) || defined(PL_parser)
 # ifndef PL_lex_inwhat
 #  define PL_lex_inwhat PL_parser->lex_inwhat
@@ -141,8 +155,8 @@
 #if I_WORKAROUND_REQUIRE_PROPAGATION
 
 typedef struct {
- SV  *code;
- I32  requires;
+ SV *code;
+ IV  require_tag;
 } indirect_hint_t;
 
 #define I_HINT_STRUCT 1
@@ -256,11 +270,12 @@ STATIC void indirect_ptable_clone(pTHX_ ptable_ent *ent, void *ud_) {
 
 #if I_HINT_STRUCT
 
- h2           = PerlMemShared_malloc(sizeof *h2);
- h2->code     = indirect_clone(h1->code, ud->owner);
+ h2       = PerlMemShared_malloc(sizeof *h2);
+ h2->code = indirect_clone(h1->code, ud->owner);
  SvREFCNT_inc(h2->code);
 #if I_WORKAROUND_REQUIRE_PROPAGATION
- h2->requires = h1->requires;
+ h2->require_tag = PTR2IV(indirect_clone(INT2PTR(SV *, h1->require_tag),
+                                         ud->owner));
 #endif
 
 #else  /*  I_HINT_STRUCT */
@@ -293,6 +308,52 @@ STATIC void indirect_thread_cleanup(pTHX_ void *ud) {
 
 #endif /* I_THREADSAFE */
 
+#if I_WORKAROUND_REQUIRE_PROPAGATION
+STATIC IV indirect_require_tag(pTHX) {
+#define indirect_require_tag() indirect_require_tag(aTHX)
+ const CV *cv, *outside;
+
+ cv = PL_compcv;
+
+ if (!cv) {
+  /* If for some reason the pragma is operational at run-time, try to discover
+   * the current cv in use. */
+  const PERL_SI *si;
+
+  for (si = PL_curstackinfo; si; si = si->si_prev) {
+   I32 cxix;
+
+   for (cxix = si->si_cxix; cxix >= 0; --cxix) {
+    const PERL_CONTEXT *cx = si->si_cxstack + cxix;
+
+    switch (CxTYPE(cx)) {
+     case CXt_SUB:
+     case CXt_FORMAT:
+      /* The propagation workaround is only needed up to 5.10.0 and at that
+       * time format and sub contexts were still identical. And even later the
+       * cv members offsets should have been kept the same. */
+      cv = cx->blk_sub.cv;
+      goto get_enclosing_cv;
+     case CXt_EVAL:
+      cv = cx->blk_eval.cv;
+      goto get_enclosing_cv;
+     default:
+      break;
+    }
+   }
+  }
+
+  cv = PL_main_cv;
+ }
+
+get_enclosing_cv:
+ for (outside = CvOUTSIDE(cv); outside; outside = CvOUTSIDE(cv))
+  cv = outside;
+
+ return PTR2IV(cv);
+}
+#endif /* I_WORKAROUND_REQUIRE_PROPAGATION */
+
 STATIC SV *indirect_tag(pTHX_ SV *value) {
 #define indirect_tag(V) indirect_tag(aTHX_ (V))
  indirect_hint_t *h;
@@ -309,28 +370,10 @@ STATIC SV *indirect_tag(pTHX_ SV *value) {
 
 #if I_HINT_STRUCT
  h = PerlMemShared_malloc(sizeof *h);
- h->code = code;
-
-#if I_WORKAROUND_REQUIRE_PROPAGATION
- {
-  const PERL_SI *si;
-  I32            requires = 0;
-
-  for (si = PL_curstackinfo; si; si = si->si_prev) {
-   I32 cxix;
-
-   for (cxix = si->si_cxix; cxix >= 0; --cxix) {
-    const PERL_CONTEXT *cx = si->si_cxstack + cxix;
-
-    if (CxTYPE(cx) == CXt_EVAL && cx->blk_eval.old_op_type == OP_REQUIRE)
-     ++requires;
-   }
-  }
-
-  h->requires = requires;
- }
-#endif /* I_WORKAROUND_REQUIRE_PROPAGATION */
-
+ h->code        = code;
+# if I_WORKAROUND_REQUIRE_PROPAGATION
+ h->require_tag = indirect_require_tag();
+# endif /* I_WORKAROUND_REQUIRE_PROPAGATION */
 #else  /*  I_HINT_STRUCT */
  h = code;
 #endif /* !I_HINT_STRUCT */
@@ -359,22 +402,8 @@ STATIC SV *indirect_detag(pTHX_ const SV *hint) {
 #endif /* I_THREADSAFE */
 
 #if I_WORKAROUND_REQUIRE_PROPAGATION
- {
-  const PERL_SI *si;
-  I32            requires = 0;
-
-  for (si = PL_curstackinfo; si; si = si->si_prev) {
-   I32 cxix;
-
-   for (cxix = si->si_cxix; cxix >= 0; --cxix) {
-    const PERL_CONTEXT *cx = si->si_cxstack + cxix;
-
-    if (CxTYPE(cx) == CXt_EVAL && cx->blk_eval.old_op_type == OP_REQUIRE
-                               && ++requires > h->requires)
-     return NULL;
-   }
-  }
- }
+ if (indirect_require_tag() != h->require_tag)
+  return NULL;
 #endif /* I_WORKAROUND_REQUIRE_PROPAGATION */
 
  return I_HINT_CODE(h);
@@ -456,7 +485,6 @@ STATIC void indirect_map_store(pTHX_ const OP *o, const char *src, SV *sv, line_
 
 STATIC const indirect_op_info_t *indirect_map_fetch(pTHX_ const OP *o) {
 #define indirect_map_fetch(O) indirect_map_fetch(aTHX_ (O))
- const indirect_op_info_t *val;
  dMY_CXT;
 
  if (MY_CXT.linestr != SvPVX_const(PL_linestr))
@@ -894,9 +922,9 @@ CODE:
  {
   level = PerlMemShared_malloc(sizeof *level);
   *level = 1;
-  LEAVE;
+  LEAVEn("sub");
   SAVEDESTRUCTOR_X(indirect_thread_cleanup, level);
-  ENTER;
+  ENTERn("sub");
  }
 
 #endif
