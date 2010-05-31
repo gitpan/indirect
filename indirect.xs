@@ -61,20 +61,6 @@
 
 #define I_HAS_PERL(R, V, S) (PERL_REVISION > (R) || (PERL_REVISION == (R) && (PERL_VERSION > (V) || (PERL_VERSION == (V) && (PERL_SUBVERSION >= (S))))))
 
-#undef ENTERn
-#if defined(ENTER_with_name) && !I_HAS_PERL(5, 11, 4)
-# define ENTERn(N) ENTER_with_name(N)
-#else
-# define ENTERn(N) ENTER
-#endif
-
-#undef LEAVEn
-#if defined(LEAVE_with_name) && !I_HAS_PERL(5, 11, 4)
-# define LEAVEn(N) LEAVE_with_name(N)
-#else
-# define LEAVEn(N) LEAVE
-#endif
-
 #if I_HAS_PERL(5, 10, 0) || defined(PL_parser)
 # ifndef PL_lex_inwhat
 #  define PL_lex_inwhat PL_parser->lex_inwhat
@@ -288,22 +274,13 @@ STATIC void indirect_ptable_clone(pTHX_ ptable_ent *ent, void *ud_) {
  ptable_hints_store(ud->tbl, ent->key, h2);
 }
 
-STATIC void indirect_thread_cleanup(pTHX_ void *);
+#include "reap.h"
 
 STATIC void indirect_thread_cleanup(pTHX_ void *ud) {
- int *level = ud;
+ dMY_CXT;
 
- if (*level) {
-  *level = 0;
-  LEAVE;
-  SAVEDESTRUCTOR_X(indirect_thread_cleanup, level);
-  ENTER;
- } else {
-  dMY_CXT;
-  PerlMemShared_free(level);
-  ptable_free(MY_CXT.map);
-  ptable_hints_free(MY_CXT.tbl);
- }
+ ptable_free(MY_CXT.map);
+ ptable_hints_free(MY_CXT.tbl);
 }
 
 #endif /* I_THREADSAFE */
@@ -840,13 +817,15 @@ STATIC void indirect_setup(pTHX) {
  if (indirect_initialized)
   return;
 
- MY_CXT_INIT;
+ {
+  MY_CXT_INIT;
 #if I_THREADSAFE
- MY_CXT.tbl     = ptable_new();
- MY_CXT.owner   = aTHX;
+  MY_CXT.tbl     = ptable_new();
+  MY_CXT.owner   = aTHX;
 #endif
- MY_CXT.map     = ptable_new();
- MY_CXT.linestr = NULL;
+  MY_CXT.map     = ptable_new();
+  MY_CXT.linestr = NULL;
+ }
 
  indirect_old_ck_const    = PL_check[OP_CONST];
  PL_check[OP_CONST]       = MEMBER_TO_FPTR(indirect_ck_const);
@@ -903,8 +882,7 @@ CLONE(...)
 PROTOTYPE: DISABLE
 PREINIT:
  ptable *t;
- int    *level;
-CODE:
+PPCODE:
  {
   my_cxt_t ud;
   dMY_CXT;
@@ -919,13 +897,8 @@ CODE:
   MY_CXT.tbl     = t;
   MY_CXT.owner   = aTHX;
  }
- {
-  level = PerlMemShared_malloc(sizeof *level);
-  *level = 1;
-  LEAVEn("sub");
-  SAVEDESTRUCTOR_X(indirect_thread_cleanup, level);
-  ENTERn("sub");
- }
+ reap(3, indirect_thread_cleanup, NULL);
+ XSRETURN(0);
 
 #endif
 

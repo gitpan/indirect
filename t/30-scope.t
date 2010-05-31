@@ -1,4 +1,4 @@
-#!perl -T
+#!perl
 
 use strict;
 use warnings;
@@ -6,7 +6,7 @@ use warnings;
 my $tests;
 BEGIN { $tests = 18 }
 
-use Test::More tests => (1 + $tests + 1) + 3 + 3 + 3 + 5 + 4 + 3;
+use Test::More tests => (1 + $tests + 1) + 3 + 3 + 3 + 5 + 4 + 5;
 
 BEGIN { delete $ENV{PERL_INDIRECT_PM_DISABLE} }
 
@@ -153,6 +153,7 @@ sub expect {
  is $@, '', 'RT #47902';
 }
 
+# This test may not fail for the old version when ran in taint mode
 {
  my $err = eval <<' SNIP';
   use indirect::TestRequired4::a0;
@@ -166,6 +167,17 @@ BEGIN { eval 'use indirect::TestRequired5::a0' }
 my $err = indirect::TestRequired5::a0::error();
 like $err, qr/^Can't locate object method "new" via package "X"/,
            'identifying requires by their eval context pointer is not enough';
+
+{
+ my @w;
+ no indirect hook => sub { push @w, indirect::msg(@_) };
+ use indirect::TestRequired6;
+ indirect::TestRequired6::bar();
+ is_deeply \@w, [ ], 'indirect syntax in sub';
+ @w = ();
+ indirect::TestRequired6::baz();
+ is_deeply \@w, [ ], 'indirect syntax in eval in sub';
+}
 
 __DATA__
 my $a = new P1;

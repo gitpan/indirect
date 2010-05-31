@@ -2,7 +2,7 @@ NAME
     indirect - Lexically warn about using the indirect object syntax.
 
 VERSION
-    Version 0.20
+    Version 0.21
 
 SYNOPSIS
         # In a script
@@ -120,7 +120,7 @@ CAVEATS
     Hence "my $x = new Class if 0" will be caught.
 
 DEPENDENCIES
-    perl 5.8.
+    perl 5.8.1.
 
     XSLoader (standard since perl 5.006).
 

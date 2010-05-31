@@ -1,6 +1,6 @@
 package indirect;
 
-use 5.008;
+use 5.008001;
 
 use strict;
 use warnings;
@@ -11,13 +11,13 @@ indirect - Lexically warn about using the indirect object syntax.
 
 =head1 VERSION
 
-Version 0.20
+Version 0.21
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.20';
+ $VERSION = '0.21';
 }
 
 =head1 SYNOPSIS
@@ -191,7 +191,7 @@ Hence C<my $x = new Class if 0> will be caught.
 
 =head1 DEPENDENCIES
 
-L<perl> 5.8.
+L<perl> 5.8.1.
 
 L<XSLoader> (standard since perl 5.006).
 

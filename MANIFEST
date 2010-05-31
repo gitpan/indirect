@@ -6,6 +6,7 @@ README
 indirect.xs
 lib/indirect.pm
 ptable.h
+reap.h
 samples/indirect.pl
 t/00-load.t
 t/10-args.t
@@ -40,3 +41,4 @@ t/lib/indirect/TestRequired5/a0.pm
 t/lib/indirect/TestRequired5/b0.pm
 t/lib/indirect/TestRequired5/c0.pm
 t/lib/indirect/TestRequired5/d0.pm
+t/lib/indirect/TestRequired6.pm
