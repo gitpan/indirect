@@ -11,13 +11,13 @@ indirect - Lexically warn about using the indirect object syntax.
 
 =head1 VERSION
 
-Version 0.21
+Version 0.22
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.21';
+ $VERSION = '0.22';
 }
 
 =head1 SYNOPSIS
@@ -35,7 +35,7 @@ BEGIN {
     }
     try { ... }; # warns
 
-    no indirect ':fatal';
+    no indirect ':fatal';    # or 'FATAL', or ':Fatal' ...
     if (defied $foo) { ... } # croaks, note the typo
 
     # From the command-line
@@ -49,7 +49,7 @@ BEGIN {
 
 When enabled (or disabled as some may prefer to say, since you actually turn it on by calling C<no indirect>), this pragma warns about indirect object syntax constructs that may have slipped into your code.
 
-This syntax is now considered harmful, since its parsing has many quirks and its use is error prone (when C<swoosh> isn't defined, C<swoosh $x> actually compiles to C<< $x->swoosh >>).
+This syntax is now considered harmful, since its parsing has many quirks and its use is error prone (when C<swoosh> is not defined, C<swoosh $x> actually compiles to C<< $x->swoosh >>).
 In L<http://www.shadowcat.co.uk/blog/matt-s-trout/indirect-but-still-fatal>, Matt S. Trout gives an example of an indirect construct that can cause a particularly bewildering error.
 
 It currently does not warn for core functions (C<print>, C<say>, C<exec> or C<system>).
@@ -72,7 +72,7 @@ BEGIN {
 
 =head1 METHODS
 
-=head2 C<< unimport [ hook => $hook | ':fatal' ] >>
+=head2 C<< unimport [ hook => $hook | ':fatal', 'FATAL', ... ] >>
 
 Magically called when C<no indirect @opts> is encountered.
 Turns the module on.
@@ -82,7 +82,7 @@ The policy to apply depends on what is first found in C<@opts> :
 
 =item *
 
-If it's the string C<':fatal'>, the compilation will croak on the first indirect syntax met.
+If it is a string that matches C</^:?fatal$/i>, the compilation will croak on the first indirect syntax met.
 
 =item *
 
@@ -105,7 +105,7 @@ sub unimport {
   my $arg = shift;
   if ($arg eq 'hook') {
    $hook = shift;
-  } elsif ($arg eq ':fatal') {
+  } elsif ($arg =~ /^:?fatal$/i) {
    $hook = sub { die msg(@_) };
   }
   last if $hook;
@@ -175,11 +175,11 @@ In this case, the pragma will always be considered to be thread-safe, and as suc
 This is useful for disabling C<indirect> in production environments.
 
 Note that clearing this variable after C<indirect> was loaded has no effect.
-If you want to reenable the pragma later, you also need to reload it by deleting the C<'indirect.pm'> entry from C<%INC>.
+If you want to re-enable the pragma later, you also need to reload it by deleting the C<'indirect.pm'> entry from C<%INC>.
 
 =head1 CAVEATS
 
-The implementation was tweaked to work around several limitations of vanilla C<perl> pragmas : it's thread safe, and doesn't suffer from a C<perl 5.8.x-5.10.0> bug that causes all pragmas to propagate into C<require>d scopes.
+The implementation was tweaked to work around several limitations of vanilla C<perl> pragmas : it's thread safe, and does not suffer from a C<perl 5.8.x-5.10.0> bug that causes all pragmas to propagate into C<require>d scopes.
 
 C<meth $obj> (no semicolon) at the end of a file won't be seen as an indirect object syntax, although it will as soon as there is another token before the end (as in C<meth $obj;> or C<meth $obj 1>).
 

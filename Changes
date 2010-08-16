@@ -1,5 +1,16 @@
 Revision history for indirect
 
+0.22    2010-08-16 16:00 UTC
+        + Add : Indirect constructs are now reported for code interpolated
+                in quote-like environments, like "${\( ... )}", "@{[ ... ]}",
+                s/pattern/ ... /e, qr/(?{ ... })/ or qr/(??{ ... })/.
+        + Add : You can now make the pragma lethal by passing anything matching
+                /^:?fatal$/i to import(), including "FATAL" and ":Fatal".
+        + Fix : [RT #60378] : segmentation fault on indirect_ck_method.
+                This caused constructs like "@{[ $obj->$meth ]}" to segfault
+                when $meth was a lexical.
+                Thanks Tokuhiro Matsuno for reporting.
+
 0.21    2010-05-31 23:10 UTC
         + Chg : perl 5.8.1 is now required (instead of 5.8.0).
         + Fix : [RT #57699] : indirect fail with 64-bit int on 5.13.1.

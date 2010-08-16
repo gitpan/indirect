@@ -11,8 +11,8 @@ use warnings;
 
 my ($tests, $reports);
 BEGIN {
- $tests   = 61;
- $reports = 69;
+ $tests   = 82;
+ $reports = 94;
 }
 
 use Test::More tests => 3 * (4 * $tests + $reports) + 4;
@@ -31,8 +31,8 @@ sub expect {
   my ($meth, $obj, $file, $line) = @$_;
   $meth = quotemeta $meth;
   $obj  = ($obj =~ /^\s*\{/) ? "a block" : "object \"\Q$obj\E\"";
-  $file = '\(eval \d+\)' unless defined $file;
-  $line = '\d+'          unless defined $line;
+  $file = '\((?:re_)?eval \d+\)' unless defined $file;
+  $line = '\d+'                  unless defined $line;
   qr/^Indirect call of method "$meth" on $obj at $file line $line/
  } eval $expected;
 }
@@ -98,7 +98,10 @@ SKIP:
     }
    }
 
+SKIP:
    {
+    skip 'No space tests on perl 5.11' => 4 + @expected
+                                                  if $] >= 5.011 and $] < 5.012;
     my $code = $code;
     $code =~ s/\$/\$ \n\t /g;
 
@@ -368,6 +371,86 @@ Hlagh->new(meh $x)
 ----
 [ 'meh', '$x' ]
 ####
+$obj = "apple ${\(new Hlagh)} pear"
+----
+[ 'new', 'Hlagh' ]
+####
+$obj = "apple @{[new Hlagh]} pear"
+----
+[ 'new', 'Hlagh' ]
+####
+$obj = "apple ${\(new $x)} pear"
+----
+[ 'new', '$x' ]
+####
+$obj = "apple @{[new $x]} pear"
+----
+[ 'new', '$x' ]
+####
+$obj = "apple ${\(new $y)} pear"
+----
+[ 'new', '$y' ]
+####
+$obj = "apple @{[new $y]} pear"
+----
+[ 'new', '$y' ]
+####
+$obj = "apple ${\(new $x qq|${\(stuff $y)}|)} pear"
+----
+[ 'stuff', '$y' ], [ 'new', '$x' ]
+####
+$obj = "apple @{[new $x qq|@{[stuff $y]}|]} pear"
+----
+[ 'stuff', '$y' ], [ 'new', '$x' ]
+#### # local $_ = "foo";
+s/foo/return; new Hlagh/e;
+----
+[ 'new', 'Hlagh' ]
+#### # local $_ = "bar";
+s/foo/return; new Hlagh/e;
+----
+[ 'new', 'Hlagh' ]
+#### # local $_ = "foo";
+s/foo/return; new $x/e;
+----
+[ 'new', '$x' ]
+#### # local $_ = "bar";
+s/foo/return; new $x/e;
+----
+[ 'new', '$x' ]
+#### # local $_ = "foo";
+s/foo/return; new $y/e;
+----
+[ 'new', '$y' ]
+#### # local $_ = "bar";
+s/foo/return; new $y/e;
+----
+[ 'new', '$y' ]
+####
+"foo" =~ /(?{new Hlagh})/;
+----
+[ 'new', 'Hlagh' ]
+####
+"foo" =~ /(?{new $x})/;
+----
+[ 'new', '$x' ]
+####
+"foo" =~ /(?{new $y})/;
+----
+[ 'new', '$y' ]
+####
+"foo" =~ /(??{new Hlagh})/;
+----
+[ 'new', 'Hlagh' ]
+####
+"foo" =~ /(??{new $x})/;
+----
+[ 'new', '$x' ]
+####
+"foo" =~ /(??{new $y})/;
+----
+[ 'new', '$y' ]
+####
 meh { };
 ----
 [ 'meh', '{' ]
@@ -404,3 +487,7 @@ meh { feh $y; 1; };
 meh { feh $x; 1; } new Hlagh, feh $y;
 ----
 [ 'feh', '$x' ], [ 'new', 'Hlagh' ], [ 'feh', '$y' ], [ 'meh', '{' ]
+####
+$obj = "apple @{[new { feh $x; meh $y; 1 }]} pear"
+----
+[ 'feh', '$x' ], [ 'meh', '$y' ], [ 'new', '{' ]

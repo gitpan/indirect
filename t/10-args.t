@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 4 + 1 + 1;
+use Test::More tests => 4 + 3 + 1;
 
 BEGIN { delete $ENV{PERL_INDIRECT_PM_DISABLE} }
 
@@ -31,17 +31,17 @@ sub expect {
  is_deeply \@warns, [ ],             'no more warnings without arguments';
 }
 
-{
+for my $fatal (':fatal', 'FATAL', ':Fatal') {
  {
   local $SIG{__WARN__} = sub { die "warn:@_" };
-  eval <<'  HERE';
+  eval <<"  HERE";
    die qq{shouldn't even compile\n};
-   no indirect ':fatal', hook => sub { die 'should not be called' };
-   my $x = new Croaked;
-   $x = new NotReached;
+   no indirect '$fatal', hook => sub { die 'should not be called' };
+   my \$x = new Croaked;
+   \$x = new NotReached;
   HERE
  }
- like $@, expect('Croaked'), 'croaks when :fatal is specified';
+ like $@, expect('Croaked'), "croaks when $fatal is specified";
 }
 
 {

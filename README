@@ -2,7 +2,7 @@ NAME
     indirect - Lexically warn about using the indirect object syntax.
 
 VERSION
-    Version 0.21
+    Version 0.22
 
 SYNOPSIS
         # In a script
@@ -18,7 +18,7 @@ SYNOPSIS
         }
         try { ... }; # warns
 
-        no indirect ':fatal';
+        no indirect ':fatal';    # or 'FATAL', or ':Fatal' ...
         if (defied $foo) { ... } # croaks, note the typo
 
         # From the command-line
@@ -34,7 +34,7 @@ DESCRIPTION
     object syntax constructs that may have slipped into your code.
 
     This syntax is now considered harmful, since its parsing has many quirks
-    and its use is error prone (when "swoosh" isn't defined, "swoosh $x"
+    and its use is error prone (when "swoosh" is not defined, "swoosh $x"
     actually compiles to "$x->swoosh"). In
     <http://www.shadowcat.co.uk/blog/matt-s-trout/indirect-but-still-fatal>,
     Matt S. Trout gives an example of an indirect construct that can cause a
@@ -47,12 +47,12 @@ DESCRIPTION
     This module is not a source filter.
 
 METHODS
-  "unimport [ hook => $hook | ':fatal' ]"
+  "unimport [ hook => $hook | ':fatal', 'FATAL', ... ]"
     Magically called when "no indirect @opts" is encountered. Turns the
     module on. The policy to apply depends on what is first found in @opts :
 
-    *   If it's the string ':fatal', the compilation will croak on the first
-        indirect syntax met.
+    *   If it is a string that matches "/^:?fatal$/i", the compilation will
+        croak on the first indirect syntax met.
 
     *   If the key/value pair "hook => $hook" comes first, $hook will be
         called for each error with a string representation of the object as
@@ -99,12 +99,12 @@ ENVIRONMENT
     for disabling "indirect" in production environments.
 
     Note that clearing this variable after "indirect" was loaded has no
-    effect. If you want to reenable the pragma later, you also need to
+    effect. If you want to re-enable the pragma later, you also need to
     reload it by deleting the 'indirect.pm' entry from %INC.
 
 CAVEATS
     The implementation was tweaked to work around several limitations of
-    vanilla "perl" pragmas : it's thread safe, and doesn't suffer from a
+    vanilla "perl" pragmas : it's thread safe, and does not suffer from a
     "perl 5.8.x-5.10.0" bug that causes all pragmas to propagate into
     "require"d scopes.
 

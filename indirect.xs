@@ -62,12 +62,6 @@
 #define I_HAS_PERL(R, V, S) (PERL_REVISION > (R) || (PERL_REVISION == (R) && (PERL_VERSION > (V) || (PERL_VERSION == (V) && (PERL_SUBVERSION >= (S))))))
 
 #if I_HAS_PERL(5, 10, 0) || defined(PL_parser)
-# ifndef PL_lex_inwhat
-#  define PL_lex_inwhat PL_parser->lex_inwhat
-# endif
-# ifndef PL_linestr
-#  define PL_linestr PL_parser->linestr
-# endif
 # ifndef PL_bufptr
 #  define PL_bufptr PL_parser->bufptr
 # endif
@@ -75,12 +69,6 @@
 #  define PL_oldbufptr PL_parser->oldbufptr
 # endif
 #else
-# ifndef PL_lex_inwhat
-#  define PL_lex_inwhat PL_Ilex_inwhat
-# endif
-# ifndef PL_linestr
-#  define PL_linestr PL_Ilinestr
-# endif
 # ifndef PL_bufptr
 #  define PL_bufptr PL_Ibufptr
 # endif
@@ -212,11 +200,10 @@ typedef struct {
 
 typedef struct {
 #if I_THREADSAFE
- ptable     *tbl; /* It really is a ptable_hints */
- tTHX        owner;
+ ptable *tbl; /* It really is a ptable_hints */
+ tTHX    owner;
 #endif
- ptable     *map;
- const char *linestr;
+ ptable *map;
 } my_cxt_t;
 
 START_MY_CXT
@@ -422,18 +409,6 @@ STATIC void indirect_map_store(pTHX_ const OP *o, const char *src, SV *sv, line_
  STRLEN len;
  dMY_CXT;
 
- /* When lex_inwhat is set, we're in a quotelike environment (qq, qr, but not q)
-  * In this case the linestr has temporarly changed, but the old buffer should
-  * still be alive somewhere. */
-
- if (!PL_lex_inwhat) {
-  const char *pl_linestr = SvPVX_const(PL_linestr);
-  if (MY_CXT.linestr != pl_linestr) {
-   ptable_clear(MY_CXT.map);
-   MY_CXT.linestr = pl_linestr;
-  }
- }
-
  if (!(oi = ptable_fetch(MY_CXT.map, o))) {
   Newx(oi, 1, indirect_op_info_t);
   ptable_store(MY_CXT.map, o, oi);
@@ -463,9 +438,6 @@ STATIC void indirect_map_store(pTHX_ const OP *o, const char *src, SV *sv, line_
 STATIC const indirect_op_info_t *indirect_map_fetch(pTHX_ const OP *o) {
 #define indirect_map_fetch(O) indirect_map_fetch(aTHX_ (O))
  dMY_CXT;
-
- if (MY_CXT.linestr != SvPVX_const(PL_linestr))
-  return NULL;
 
  return ptable_fetch(MY_CXT.map, o);
 }
@@ -649,28 +621,35 @@ STATIC OP *(*indirect_old_ck_method)(pTHX_ OP *) = 0;
 STATIC OP *indirect_ck_method(pTHX_ OP *o) {
  if (indirect_hint()) {
   OP *op = cUNOPo->op_first;
-  const indirect_op_info_t *oi = indirect_map_fetch(op);
-  const char *s = NULL;
-  line_t line;
-  SV *sv;
 
-  if (oi && (s = oi->pos)) {
-   sv   = sv_2mortal(newSVpvn(oi->buf, oi->len));
-   line = oi->line; /* Keep the old line so that we really point to the first */
-  } else {
-   sv = cSVOPx_sv(op);
-   if (!SvPOK(sv) || (SvTYPE(sv) < SVt_PV))
-    goto done;
-   sv   = sv_mortalcopy(sv);
-   s    = indirect_find(sv, PL_oldbufptr);
-   line = CopLINE(&PL_compiling);
+  /* Indirect method call is only possible when the method is a bareword, so
+   * don't trip up on $obj->$meth. */
+  if (op && op->op_type == OP_CONST) {
+   const indirect_op_info_t *oi = indirect_map_fetch(op);
+   const char *s = NULL;
+   line_t line;
+   SV *sv;
+
+   if (oi && (s = oi->pos)) {
+    sv   = sv_2mortal(newSVpvn(oi->buf, oi->len));
+    /* Keep the old line so that we really point to the first line of the
+     * expression. */
+    line = oi->line;
+   } else {
+    sv = cSVOPx_sv(op);
+    if (!SvPOK(sv) || (SvTYPE(sv) < SVt_PV))
+     goto done;
+    sv   = sv_mortalcopy(sv);
+    s    = indirect_find(sv, PL_oldbufptr);
+    line = CopLINE(&PL_compiling);
+   }
+
+   o = CALL_FPTR(indirect_old_ck_method)(aTHX_ o);
+   /* o may now be a method_named */
+
+   indirect_map_store(o, s, sv, line);
+   return o;
   }
-
-  o = CALL_FPTR(indirect_old_ck_method)(aTHX_ o);
-  /* o may now be a method_named */
-
-  indirect_map_store(o, s, sv, line);
-  return o;
  }
 
 done:
@@ -820,11 +799,10 @@ STATIC void indirect_setup(pTHX) {
  {
   MY_CXT_INIT;
 #if I_THREADSAFE
-  MY_CXT.tbl     = ptable_new();
-  MY_CXT.owner   = aTHX;
+  MY_CXT.tbl   = ptable_new();
+  MY_CXT.owner = aTHX;
 #endif
-  MY_CXT.map     = ptable_new();
-  MY_CXT.linestr = NULL;
+  MY_CXT.map   = ptable_new();
  }
 
  indirect_old_ck_const    = PL_check[OP_CONST];
@@ -892,10 +870,9 @@ PPCODE:
  }
  {
   MY_CXT_CLONE;
-  MY_CXT.map     = ptable_new();
-  MY_CXT.linestr = NULL;
-  MY_CXT.tbl     = t;
-  MY_CXT.owner   = aTHX;
+  MY_CXT.map   = ptable_new();
+  MY_CXT.tbl   = t;
+  MY_CXT.owner = aTHX;
  }
  reap(3, indirect_thread_cleanup, NULL);
  XSRETURN(0);

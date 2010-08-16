@@ -9,12 +9,12 @@ package main;
 use strict;
 use warnings;
 
-use Test::More tests => 56 * 8;
+use Test::More tests => 101 * 8;
 
 BEGIN { delete $ENV{PERL_INDIRECT_PM_DISABLE} }
 
 my ($obj, $pkg, $cb, $x, @a);
-our $y;
+our ($y, $meth);
 sub meh;
 sub zap (&);
 
@@ -124,6 +124,12 @@ $obj = Hlagh->$cb($pkg);
 ####
 $obj = Hlagh->$cb(sub { 'foo' },  bar => $obj);
 ####
+$obj = Hlagh->$meth;
+####
+$obj =   Hlagh
+   -> 
+          $meth   ( 1,   2   );
+####
 $obj = $pkg->new   ;
 ####
 $obj = $pkg  ->   new  (   );
@@ -150,6 +156,30 @@ $obj = $pkg    ->   ($cb)   ();
 $obj = $pkg->$cb( $obj  );
 ####
 $obj = $pkg->$cb(qw/foo bar baz/);
+####
+$obj = $pkg->$meth;
+####
+$obj 
+ =
+    $pkg
+          ->
+              $meth
+  ( 1 .. 10 );
+####
+$obj = $y->$cb;
+####
+$obj =  $y
+  ->          $cb   (
+  'foo', 1, 2, 'bar'
+);
+####
+$obj = $y->$meth;
+####
+$obj =
+  $y->
+      $meth   (
+ qr(hello),
+);
 ####
 meh;
 ####
@@ -187,9 +217,83 @@ print STDOUT "bananananananana\n";
 ####
 $x->foo($pkg->$cb)
 ####
-$obj = "apple ${\(new Hlagh)} pear"
+$obj = "apple ${\($x->new)} pear"
 ####
-$obj = "apple @{[new Hlagh]} pear"
+$obj = "apple @{[$x->new]} pear"
+####
+$obj = "apple ${\($y->new)} pear"
+####
+$obj = "apple @{[$y->new]} pear"
+####
+$obj = "apple ${\($x->$cb)} pear"
+####
+$obj = "apple @{[$x->$cb]} pear"
+####
+$obj = "apple ${\($y->$cb)} pear"
+####
+$obj = "apple @{[$y->$cb]} pear"
+####
+$obj = "apple ${\($x->$meth)} pear"
+####
+$obj = "apple @{[$x->$meth]} pear"
+####
+$obj = "apple ${\($y->$meth)} pear"
+####
+$obj = "apple @{[$y->$meth]} pear"
+#### # local $_ = "foo";
+s/foo/return; Hlagh->new/e;
+#### # local $_ = "bar";
+s/foo/return; Hlagh->new/e;
+#### # local $_ = "foo";
+s/foo/return; Hlagh->$cb/e;
+#### # local $_ = "bar";
+s/foo/return; Hlagh->$cb/e;
+#### # local $_ = "foo";
+s/foo/return; Hlagh->$meth/e;
+#### # local $_ = "bar";
+s/foo/return; Hlagh->$meth/e;
+#### # local $_ = "foo";
+s/foo/return; $x->new/e;
+#### # local $_ = "bar";
+s/foo/return; $x->new/e;
+#### # local $_ = "foo";
+s/foo/return; $x->$cb/e;
+#### # local $_ = "bar";
+s/foo/return; $x->$cb/e;
+#### # local $_ = "foo";
+s/foo/return; $x->$meth/e;
+#### # local $_ = "bar";
+s/foo/return; $x->$meth/e;
+#### # local $_ = "foo";
+s/foo/return; $y->new/e;
+#### # local $_ = "bar";
+s/foo/return; $y->new/e;
+#### # local $_ = "foo";
+s/foo/return; $y->$cb/e;
+#### # local $_ = "bar";
+s/foo/return; $y->$cb/e;
+#### # local $_ = "foo";
+s/foo/return; $y->$meth/e;
+#### # local $_ = "bar";
+s/foo/return; $y->$meth/e;
+####
+"foo" =~ /(?{Hlagh->new})/;
+####
+"foo" =~ /(?{Hlagh->$cb})/;
+####
+"foo" =~ /(?{Hlagh->$meth})/;
+####
+"foo" =~ /(?{$x->new})/;
+####
+"foo" =~ /(?{$x->$cb})/;
+####
+"foo" =~ /(?{$x->$meth})/;
+####
+"foo" =~ /(?{$y->new})/;
+####
+"foo" =~ /(?{$y->$cb})/;
+####
+"foo" =~ /(?{$y->$meth})/;
 ####
 exec $x $x, @a;
 ####
