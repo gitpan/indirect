@@ -2,7 +2,7 @@ NAME
     indirect - Lexically warn about using the indirect object syntax.
 
 VERSION
-    Version 0.22
+    Version 0.23
 
 SYNOPSIS
         # In a script
@@ -108,9 +108,11 @@ CAVEATS
     "perl 5.8.x-5.10.0" bug that causes all pragmas to propagate into
     "require"d scopes.
 
-    "meth $obj" (no semicolon) at the end of a file won't be seen as an
-    indirect object syntax, although it will as soon as there is another
-    token before the end (as in "meth $obj;" or "meth $obj 1").
+    Before "perl" 5.12, "meth $obj" (no semicolon) at the end of a file is
+    not seen as an indirect object syntax, although it is as soon as there
+    is another token before the end (as in "meth $obj;" or "meth $obj 1").
+    If you use "perl" 5.12 or greater, those constructs are correctly
+    reported.
 
     With 5.8 perls, the pragma does not propagate into "eval STRING". This
     is due to a shortcoming in the way perl handles the hints hash, which is

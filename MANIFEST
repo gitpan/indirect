@@ -21,7 +21,8 @@ t/40-threads.t
 t/41-threads-teardown.t
 t/45-memory.t
 t/46-stress.t
-t/80-regressions.t
+t/47-stress-use.t
+t/50-external.t
 t/91-pod.t
 t/92-pod-coverage.t
 t/95-portability-files.t

@@ -62,6 +62,9 @@
 #define I_HAS_PERL(R, V, S) (PERL_REVISION > (R) || (PERL_REVISION == (R) && (PERL_VERSION > (V) || (PERL_VERSION == (V) && (PERL_SUBVERSION >= (S))))))
 
 #if I_HAS_PERL(5, 10, 0) || defined(PL_parser)
+# ifndef PL_linestr
+#  define PL_linestr PL_parser->linestr
+# endif
 # ifndef PL_bufptr
 #  define PL_bufptr PL_parser->bufptr
 # endif
@@ -69,6 +72,9 @@
 #  define PL_oldbufptr PL_parser->oldbufptr
 # endif
 #else
+# ifndef PL_linestr
+#  define PL_linestr PL_Ilinestr
+# endif
 # ifndef PL_bufptr
 #  define PL_bufptr PL_Ibufptr
 # endif
@@ -78,7 +84,7 @@
 #endif
 
 #ifndef I_WORKAROUND_REQUIRE_PROPAGATION
-# define I_WORKAROUND_REQUIRE_PROPAGATION !I_HAS_PERL(5, 10, 1)
+# define I_WORKAROUND_REQUIRE_PROPAGATION !I_HAS_PERL(5, 12, 0)
 #endif
 
 /* ... Thread safety and multiplicity ...................................... */
@@ -176,10 +182,11 @@ typedef SV indirect_hint_t;
  * thread cleanup. */
 
 typedef struct {
- const char *pos;
- char       *buf;
- STRLEN      len, size;
- line_t      line;
+ STRLEN  pos;
+ STRLEN  size;
+ STRLEN  len;
+ char   *buf;
+ line_t  line;
 } indirect_op_info_t;
 
 #define PTABLE_NAME        ptable
@@ -377,33 +384,22 @@ STATIC U32 indirect_hash = 0;
 
 STATIC SV *indirect_hint(pTHX) {
 #define indirect_hint() indirect_hint(aTHX)
- SV *hint;
+ SV **val;
 
  if (IN_PERL_RUNTIME)
   return NULL;
 
-#if I_HAS_PERL(5, 9, 5)
- hint = Perl_refcounted_he_fetch(aTHX_ PL_curcop->cop_hints_hash,
-                                       NULL,
-                                       __PACKAGE__, __PACKAGE_LEN__,
-                                       0,
-                                       indirect_hash);
-#else
- {
-  SV **val = hv_fetch(GvHV(PL_hintgv), __PACKAGE__, __PACKAGE_LEN__,
-                                                                 indirect_hash);
-  if (!val)
-   return 0;
-  hint = *val;
- }
-#endif
- return indirect_detag(hint);
+ val = hv_fetch(GvHV(PL_hintgv), __PACKAGE__, __PACKAGE_LEN__, indirect_hash);
+ if (!val)
+  return NULL;
+
+ return indirect_detag(*val);
 }
 
 /* ... op -> source position ............................................... */
 
-STATIC void indirect_map_store(pTHX_ const OP *o, const char *src, SV *sv, line_t line) {
-#define indirect_map_store(O, S, N, L) indirect_map_store(aTHX_ (O), (S), (N), (L))
+STATIC void indirect_map_store(pTHX_ const OP *o, STRLEN pos, SV *sv, line_t line) {
+#define indirect_map_store(O, P, N, L) indirect_map_store(aTHX_ (O), (P), (N), (L))
  indirect_op_info_t *oi;
  const char *s;
  STRLEN len;
@@ -431,7 +427,7 @@ STATIC void indirect_map_store(pTHX_ const OP *o, const char *src, SV *sv, line_
  Copy(s, oi->buf, len, char);
 
  oi->len  = len;
- oi->pos  = src;
+ oi->pos  = pos;
  oi->line = line;
 }
 
@@ -451,28 +447,35 @@ STATIC void indirect_map_delete(pTHX_ const OP *o) {
 
 /* --- Check functions ----------------------------------------------------- */
 
-STATIC const char *indirect_find(pTHX_ SV *sv, const char *s) {
-#define indirect_find(N, S) indirect_find(aTHX_ (N), (S))
+STATIC int indirect_find(pTHX_ SV *sv, const char *s, STRLEN *pos) {
+#define indirect_find(N, S, P) indirect_find(aTHX_ (N), (S), (P))
  STRLEN len;
- const char *p = NULL, *r = SvPV_const(sv, len);
+ const char *p, *r = SvPV_const(sv, len);
 
  if (len >= 1 && *r == '$') {
   ++r;
   --len;
   s = strchr(s, '$');
   if (!s)
-   return NULL;
+   return 0;
  }
 
- p = strstr(s, r);
- while (p) {
-  p += len;
-  if (!isALNUM(*p))
+ p = s;
+ while (1) {
+  p = strstr(p, r);
+  if (!p)
+   return 0;
+  if (!isALNUM(p[len]))
    break;
-  p = strstr(p + 1, r);
+  /* p points to a word that has r as prefix, skip the rest of the word */
+  p += len + 1;
+  while (isALNUM(*p))
+   ++p;
  }
 
- return p;
+ *pos = p - SvPVX_const(PL_linestr);
+
+ return 1;
 }
 
 /* ... ck_const ............................................................ */
@@ -480,14 +483,18 @@ STATIC const char *indirect_find(pTHX_ SV *sv, const char *s) {
 STATIC OP *(*indirect_old_ck_const)(pTHX_ OP *) = 0;
 
 STATIC OP *indirect_ck_const(pTHX_ OP *o) {
- o = CALL_FPTR(indirect_old_ck_const)(aTHX_ o);
+ o = indirect_old_ck_const(aTHX_ o);
 
  if (indirect_hint()) {
   SV *sv = cSVOPo_sv;
+
   if (SvPOK(sv) && (SvTYPE(sv) >= SVt_PV)) {
-   const char *s = indirect_find(sv, PL_oldbufptr);
-   indirect_map_store(o, s, sv, CopLINE(&PL_compiling));
-   return o;
+   STRLEN pos;
+
+   if (indirect_find(sv, PL_oldbufptr, &pos)) {
+    indirect_map_store(o, pos, sv, CopLINE(&PL_compiling));
+    return o;
+   }
   }
  }
 
@@ -503,8 +510,8 @@ STATIC OP *indirect_ck_rv2sv(pTHX_ OP *o) {
  if (indirect_hint()) {
   OP *op = cUNOPo->op_first;
   SV *sv;
-  const char *name = NULL, *s;
-  STRLEN len;
+  const char *name = NULL;
+  STRLEN pos, len;
   OPCODE type = (OPCODE) op->op_type;
 
   switch (type) {
@@ -527,8 +534,8 @@ STATIC OP *indirect_ck_rv2sv(pTHX_ OP *o) {
 
   sv = sv_2mortal(newSVpvn("$", 1));
   sv_catpvn_nomg(sv, name, len);
-  s = indirect_find(sv, PL_oldbufptr);
-  if (!s) { /* If it failed, retry without the current stash */
+  if (!indirect_find(sv, PL_oldbufptr, &pos)) {
+   /* If it failed, retry without the current stash */
    const char *stash = HvNAME_get(PL_curstash);
    STRLEN stashlen = HvNAMELEN_get(PL_curstash);
 
@@ -545,18 +552,18 @@ STATIC OP *indirect_ck_rv2sv(pTHX_ OP *o) {
    sv_setpvn(sv, "$", 1);
    stashlen += 2;
    sv_catpvn_nomg(sv, name + stashlen, len - stashlen);
-   s = indirect_find(sv, PL_oldbufptr);
-   if (!s)
+   if (!indirect_find(sv, PL_oldbufptr, &pos))
     goto done;
   }
 
-  o = CALL_FPTR(indirect_old_ck_rv2sv)(aTHX_ o);
-  indirect_map_store(o, s, sv, CopLINE(&PL_compiling));
+  o = indirect_old_ck_rv2sv(aTHX_ o);
+
+  indirect_map_store(o, pos, sv, CopLINE(&PL_compiling));
   return o;
  }
 
 done:
- o = CALL_FPTR(indirect_old_ck_rv2sv)(aTHX_ o);
+ o = indirect_old_ck_rv2sv(aTHX_ o);
 
  indirect_map_delete(o);
  return o;
@@ -567,7 +574,7 @@ done:
 STATIC OP *(*indirect_old_ck_padany)(pTHX_ OP *) = 0;
 
 STATIC OP *indirect_ck_padany(pTHX_ OP *o) {
- o = CALL_FPTR(indirect_old_ck_padany)(aTHX_ o);
+ o = indirect_old_ck_padany(aTHX_ o);
 
  if (indirect_hint()) {
   SV *sv;
@@ -579,7 +586,8 @@ STATIC OP *indirect_ck_padany(pTHX_ OP *o) {
    while (s < t && isSPACE(*t)) --t;
    sv = sv_2mortal(newSVpvn("$", 1));
    sv_catpvn_nomg(sv, s, t - s + 1);
-   indirect_map_store(o, s, sv, CopLINE(&PL_compiling));
+   indirect_map_store(o, s - SvPVX_const(PL_linestr),
+                         sv, CopLINE(&PL_compiling));
    return o;
   }
  }
@@ -600,10 +608,11 @@ STATIC OP *indirect_ck_scope(pTHX_ OP *o) {
   case OP_SCOPE:   old_ck = indirect_old_ck_scope;   break;
   case OP_LINESEQ: old_ck = indirect_old_ck_lineseq; break;
  }
- o = CALL_FPTR(old_ck)(aTHX_ o);
+ o = old_ck(aTHX_ o);
 
  if (indirect_hint()) {
-  indirect_map_store(o, PL_oldbufptr, NULL, CopLINE(&PL_compiling));
+  indirect_map_store(o, PL_oldbufptr - SvPVX_const(PL_linestr),
+                        NULL, CopLINE(&PL_compiling));
   return o;
  }
 
@@ -626,34 +635,64 @@ STATIC OP *indirect_ck_method(pTHX_ OP *o) {
    * don't trip up on $obj->$meth. */
   if (op && op->op_type == OP_CONST) {
    const indirect_op_info_t *oi = indirect_map_fetch(op);
-   const char *s = NULL;
+   STRLEN pos;
    line_t line;
    SV *sv;
 
-   if (oi && (s = oi->pos)) {
-    sv   = sv_2mortal(newSVpvn(oi->buf, oi->len));
-    /* Keep the old line so that we really point to the first line of the
-     * expression. */
-    line = oi->line;
-   } else {
-    sv = cSVOPx_sv(op);
-    if (!SvPOK(sv) || (SvTYPE(sv) < SVt_PV))
-     goto done;
-    sv   = sv_mortalcopy(sv);
-    s    = indirect_find(sv, PL_oldbufptr);
-    line = CopLINE(&PL_compiling);
-   }
+   if (!oi)
+    goto done;
 
-   o = CALL_FPTR(indirect_old_ck_method)(aTHX_ o);
+   sv   = sv_2mortal(newSVpvn(oi->buf, oi->len));
+   pos  = oi->pos;
+   /* Keep the old line so that we really point to the first line of the
+    * expression. */
+   line = oi->line;
+
+   o = indirect_old_ck_method(aTHX_ o);
    /* o may now be a method_named */
 
-   indirect_map_store(o, s, sv, line);
+   indirect_map_store(o, pos, sv, line);
    return o;
   }
  }
 
 done:
- o = CALL_FPTR(indirect_old_ck_method)(aTHX_ o);
+ o = indirect_old_ck_method(aTHX_ o);
+
+ indirect_map_delete(o);
+ return o;
+}
+
+/* ... ck_method_named ..................................................... */
+
+/* "use foo/no foo" compiles its call to import/unimport directly to a
+ * method_named op. */
+
+STATIC OP *(*indirect_old_ck_method_named)(pTHX_ OP *) = 0;
+
+STATIC OP *indirect_ck_method_named(pTHX_ OP *o) {
+ if (indirect_hint()) {
+  STRLEN pos;
+  line_t line;
+  SV *sv;
+
+  sv = cSVOPo_sv;
+  if (!SvPOK(sv) || (SvTYPE(sv) < SVt_PV))
+   goto done;
+  sv = sv_mortalcopy(sv);
+
+  if (!indirect_find(sv, PL_oldbufptr, &pos))
+   goto done;
+  line = CopLINE(&PL_compiling);
+
+  o = indirect_old_ck_method_named(aTHX_ o);
+
+  indirect_map_store(o, pos, sv, line);
+  return o;
+ }
+
+done:
+ o = indirect_old_ck_method_named(aTHX_ o);
 
  indirect_map_delete(o);
  return o;
@@ -661,22 +700,12 @@ done:
 
 /* ... ck_entersub ......................................................... */
 
-STATIC int indirect_is_indirect(const indirect_op_info_t *moi, const indirect_op_info_t *ooi) {
- if (moi->pos > ooi->pos)
-  return 0;
-
- if (moi->pos == ooi->pos)
-  return moi->len == ooi->len && !memcmp(moi->buf, ooi->buf, moi->len);
-
- return 1;
-}
-
 STATIC OP *(*indirect_old_ck_entersub)(pTHX_ OP *) = 0;
 
 STATIC OP *indirect_ck_entersub(pTHX_ OP *o) {
  SV *code = indirect_hint();
 
- o = CALL_FPTR(indirect_old_ck_entersub)(aTHX_ o);
+ o = indirect_old_ck_entersub(aTHX_ o);
 
  if (code) {
   const indirect_op_info_t *moi, *ooi;
@@ -713,14 +742,17 @@ STATIC OP *indirect_ck_entersub(pTHX_ OP *o) {
    goto done;
 
   moi = indirect_map_fetch(mop);
-  if (!(moi && moi->pos))
+  if (!moi)
    goto done;
 
   ooi = indirect_map_fetch(oop);
-  if (!(ooi && ooi->pos))
+  if (!ooi)
    goto done;
 
-  if (indirect_is_indirect(moi, ooi)) {
+  /* When positions are identical, the method and the object must have the
+   * same name. But it also means that it is an indirect call, as "foo->foo"
+   * results in different positions. */
+  if (moi->pos <= ooi->pos) {
    SV *file;
    dSP;
 
@@ -772,21 +804,23 @@ STATIC void indirect_teardown(pTHX_ void *root) {
  ptable_hints_free(MY_CXT.tbl);
 #endif
 
- PL_check[OP_CONST]       = MEMBER_TO_FPTR(indirect_old_ck_const);
- indirect_old_ck_const    = 0;
- PL_check[OP_RV2SV]       = MEMBER_TO_FPTR(indirect_old_ck_rv2sv);
- indirect_old_ck_rv2sv    = 0;
- PL_check[OP_PADANY]      = MEMBER_TO_FPTR(indirect_old_ck_padany);
- indirect_old_ck_padany   = 0;
- PL_check[OP_SCOPE]       = MEMBER_TO_FPTR(indirect_old_ck_scope);
- indirect_old_ck_scope    = 0;
- PL_check[OP_LINESEQ]     = MEMBER_TO_FPTR(indirect_old_ck_lineseq);
- indirect_old_ck_lineseq  = 0;
+ PL_check[OP_CONST]           = MEMBER_TO_FPTR(indirect_old_ck_const);
+ indirect_old_ck_const        = 0;
+ PL_check[OP_RV2SV]           = MEMBER_TO_FPTR(indirect_old_ck_rv2sv);
+ indirect_old_ck_rv2sv        = 0;
+ PL_check[OP_PADANY]          = MEMBER_TO_FPTR(indirect_old_ck_padany);
+ indirect_old_ck_padany       = 0;
+ PL_check[OP_SCOPE]           = MEMBER_TO_FPTR(indirect_old_ck_scope);
+ indirect_old_ck_scope        = 0;
+ PL_check[OP_LINESEQ]         = MEMBER_TO_FPTR(indirect_old_ck_lineseq);
+ indirect_old_ck_lineseq      = 0;
 
- PL_check[OP_METHOD]      = MEMBER_TO_FPTR(indirect_old_ck_method);
- indirect_old_ck_method   = 0;
- PL_check[OP_ENTERSUB]    = MEMBER_TO_FPTR(indirect_old_ck_entersub);
- indirect_old_ck_entersub = 0;
+ PL_check[OP_METHOD]          = MEMBER_TO_FPTR(indirect_old_ck_method);
+ indirect_old_ck_method       = 0;
+ PL_check[OP_METHOD_NAMED]    = MEMBER_TO_FPTR(indirect_old_ck_method_named);
+ indirect_old_ck_method_named = 0;
+ PL_check[OP_ENTERSUB]        = MEMBER_TO_FPTR(indirect_old_ck_entersub);
+ indirect_old_ck_entersub     = 0;
 
  indirect_initialized = 0;
 }
@@ -805,21 +839,23 @@ STATIC void indirect_setup(pTHX) {
   MY_CXT.map   = ptable_new();
  }
 
- indirect_old_ck_const    = PL_check[OP_CONST];
- PL_check[OP_CONST]       = MEMBER_TO_FPTR(indirect_ck_const);
- indirect_old_ck_rv2sv    = PL_check[OP_RV2SV];
- PL_check[OP_RV2SV]       = MEMBER_TO_FPTR(indirect_ck_rv2sv);
- indirect_old_ck_padany   = PL_check[OP_PADANY];
- PL_check[OP_PADANY]      = MEMBER_TO_FPTR(indirect_ck_padany);
- indirect_old_ck_scope    = PL_check[OP_SCOPE];
- PL_check[OP_SCOPE]       = MEMBER_TO_FPTR(indirect_ck_scope);
- indirect_old_ck_lineseq  = PL_check[OP_LINESEQ];
- PL_check[OP_LINESEQ]     = MEMBER_TO_FPTR(indirect_ck_scope);
+ indirect_old_ck_const        = PL_check[OP_CONST];
+ PL_check[OP_CONST]           = MEMBER_TO_FPTR(indirect_ck_const);
+ indirect_old_ck_rv2sv        = PL_check[OP_RV2SV];
+ PL_check[OP_RV2SV]           = MEMBER_TO_FPTR(indirect_ck_rv2sv);
+ indirect_old_ck_padany       = PL_check[OP_PADANY];
+ PL_check[OP_PADANY]          = MEMBER_TO_FPTR(indirect_ck_padany);
+ indirect_old_ck_scope        = PL_check[OP_SCOPE];
+ PL_check[OP_SCOPE]           = MEMBER_TO_FPTR(indirect_ck_scope);
+ indirect_old_ck_lineseq      = PL_check[OP_LINESEQ];
+ PL_check[OP_LINESEQ]         = MEMBER_TO_FPTR(indirect_ck_scope);
 
- indirect_old_ck_method   = PL_check[OP_METHOD];
- PL_check[OP_METHOD]      = MEMBER_TO_FPTR(indirect_ck_method);
- indirect_old_ck_entersub = PL_check[OP_ENTERSUB];
- PL_check[OP_ENTERSUB]    = MEMBER_TO_FPTR(indirect_ck_entersub);
+ indirect_old_ck_method       = PL_check[OP_METHOD];
+ PL_check[OP_METHOD]          = MEMBER_TO_FPTR(indirect_ck_method);
+ indirect_old_ck_method_named = PL_check[OP_METHOD_NAMED];
+ PL_check[OP_METHOD_NAMED]    = MEMBER_TO_FPTR(indirect_ck_method_named);
+ indirect_old_ck_entersub     = PL_check[OP_ENTERSUB];
+ PL_check[OP_ENTERSUB]        = MEMBER_TO_FPTR(indirect_ck_entersub);
 
 #if I_MULTIPLICITY
  call_atexit(indirect_teardown, aTHX);

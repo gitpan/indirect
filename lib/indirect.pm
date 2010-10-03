@@ -11,13 +11,13 @@ indirect - Lexically warn about using the indirect object syntax.
 
 =head1 VERSION
 
-Version 0.22
+Version 0.23
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.22';
+ $VERSION = '0.23';
 }
 
 =head1 SYNOPSIS
@@ -181,7 +181,8 @@ If you want to re-enable the pragma later, you also need to reload it by deletin
 
 The implementation was tweaked to work around several limitations of vanilla C<perl> pragmas : it's thread safe, and does not suffer from a C<perl 5.8.x-5.10.0> bug that causes all pragmas to propagate into C<require>d scopes.
 
-C<meth $obj> (no semicolon) at the end of a file won't be seen as an indirect object syntax, although it will as soon as there is another token before the end (as in C<meth $obj;> or C<meth $obj 1>).
+Before C<perl> 5.12, C<meth $obj> (no semicolon) at the end of a file is not seen as an indirect object syntax, although it is as soon as there is another token before the end (as in C<meth $obj;> or C<meth $obj 1>).
+If you use C<perl> 5.12 or greater, those constructs are correctly reported.
 
 With 5.8 perls, the pragma does not propagate into C<eval STRING>.
 This is due to a shortcoming in the way perl handles the hints hash, which is addressed in perl 5.10.

@@ -3,14 +3,20 @@
 use strict;
 use warnings;
 
+sub skipall {
+ my ($msg) = @_;
+ require Test::More;
+ Test::More::plan(skip_all => $msg);
+}
+
 use Config qw/%Config/;
 
 BEGIN {
- if (!$Config{useithreads}) {
-  require Test::More;
-  Test::More->import;
-  plan(skip_all => 'This perl wasn\'t built to support threads');
- }
+ my $force = $ENV{PERL_INDIRECT_TEST_THREADS} ? 1 : !1;
+ skipall 'This perl wasn\'t built to support threads'
+                                                    unless $Config{useithreads};
+ skipall 'perl 5.13.4 required to test thread safety'
+                                                unless $force or $] >= 5.013004;
 }
 
 use threads;
@@ -20,12 +26,9 @@ use Test::More;
 BEGIN {
  delete $ENV{PERL_INDIRECT_PM_DISABLE};
  require indirect;
- if (indirect::I_THREADSAFE()) {
-  plan tests => 10 * 2 * (2 + 3);
-  defined and diag "Using threads $_" for $threads::VERSION;
- } else {
-  plan skip_all => 'This indirect isn\'t thread safe';
- }
+ skipall 'This indirect isn\'t thread safe' unless indirect::I_THREADSAFE();
+ plan tests => 10 * 2 * (2 + 3);
+ defined and diag "Using threads $_" for $threads::VERSION;
 }
 
 sub expect {

@@ -1,5 +1,16 @@
 Revision history for indirect
 
+0.23    2010-10-03 00:15 UTC
+        + Fix : Some indirect constructs could be incorrectly reported when
+                several modules were used in the same scope. This caused
+                t/30-scope.t to fail randomly.
+        + Tst : Threads tests are now only run on perl 5.13.4 and higher.
+                They could segfault randomly because of what seems to be an
+                internal bug of Perl, which has been addressed in 5.13.4.
+                There is also an environment variable that allows you to
+                forcefully run those tests, but it should be set only for
+                author testing and not for end users.
+
 0.22    2010-08-16 16:00 UTC
         + Add : Indirect constructs are now reported for code interpolated
                 in quote-like environments, like "${\( ... )}", "@{[ ... ]}",
