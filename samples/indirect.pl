@@ -3,7 +3,7 @@
 #use strict;
 #use warnings;
 
-use lib qw{blib/lib blib/arch};
+use lib qw<blib/lib blib/arch>;
 
 sub Hlagh::new { my $class = shift; bless { }, ref($class) || $class ; }
 

@@ -9,14 +9,14 @@ sub skipall {
  Test::More::plan(skip_all => $msg);
 }
 
-use Config qw/%Config/;
+use Config qw<%Config>;
 
 BEGIN {
  my $force = $ENV{PERL_INDIRECT_TEST_THREADS} ? 1 : !1;
  skipall 'This perl wasn\'t built to support threads'
                                                     unless $Config{useithreads};
  skipall 'perl 5.13.4 required to test thread safety'
-                                                unless $force or $] >= 5.013004;
+                                              unless $force or "$]" >= 5.013004;
 }
 
 use threads;
@@ -43,13 +43,13 @@ sub run_perl {
 
 SKIP:
 {
- skip 'Fails on 5.8.2 and lower' => 1 if $] <= 5.008002;
+ skip 'Fails on 5.8.2 and lower' => 1 if "$]" <= 5.008002;
 
  my $status = run_perl <<' RUN';
   my ($code, @expected);
   BEGIN {
    $code = 2;
-   @expected = qw/X Z/;
+   @expected = qw<X Z>;
   }
   sub cb { --$code if $_[0] eq shift(@expected) || q{DUMMY} }
   use threads;

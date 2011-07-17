@@ -24,7 +24,7 @@ sub run_perl {
 
 SKIP:
 {
- skip 'Fixed in core only since 5.12' => 1 unless $] >= 5.012;
+ skip 'Fixed in core only since 5.12' => 1 unless "$]" >= 5.012;
  my $status = run_perl 'no indirect hook => sub { exit 2 }; new X';
  is $status, 2 << 8, 'no semicolon at the end of -e';
 }

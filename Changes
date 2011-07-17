@@ -1,5 +1,18 @@
 Revision history for indirect
 
+0.24    2011-07-17 23:15 UTC
+        + Fix : [RT #64521] : "no indirect" leaking into eval.
+                This is currently only fixed for perl 5.10 (perl 5.12 and
+                higher were never affected). It was caused by a very stupid
+                mistake of mine that was introduced in indirect version 0.23.
+                Thanks Michael G Schwern for reporting.
+        + Fix : [RT #69291] : indirect.pm breaks %^H.
+                This was caused by the same mistake as for the previous bug,
+                and as such it is also only fixed for perl 5.10 (and never
+                affected perl 5.12).
+                Thanks Andrew Main for reporting.
+        + Doc : C++ compilers are officially NOT supported.
+
 0.23    2010-10-03 00:15 UTC
         + Fix : Some indirect constructs could be incorrectly reported when
                 several modules were used in the same scope. This caused

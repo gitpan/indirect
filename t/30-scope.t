@@ -6,7 +6,7 @@ use warnings;
 my $tests;
 BEGIN { $tests = 18 }
 
-use Test::More tests => (1 + $tests + 1) + 3 + 3 + 3 + 5 + 4 + 5;
+use Test::More tests => (1 + $tests + 1) + 2 + 3 + 3 + 3 + 5 + 4 + 5;
 
 BEGIN { delete $ENV{PERL_INDIRECT_PM_DISABLE} }
 
@@ -73,7 +73,7 @@ sub expect {
   }
  }
  is $@, '', "no indirect; eval 'my \$x = new Bar'";
- if ($] < 5.009005) {
+ if ("$]" < 5.009005) {
   is   @w,   0,              'no warnings caught';
   pass 'placeholder';
  } else {
@@ -81,6 +81,20 @@ sub expect {
   diag join "\n", 'All warnings:', @w if @w > 1;
   like $w[0], expect('Bar'), 'correct warning';
  }
+}
+
+SKIP: {
+ skip 'The pragma doesn\'t propagte into eval STRING before perl 5.10' => 2
+                                                             if "$]" < 5.009005;
+ my @w;
+ my $test = sub { eval 'return; new XYZ' };
+ {
+  local $SIG{__WARN__} = sub { push @w, join '', 'warn:', @_ };
+  eval 'return; no indirect; BEGIN { $test->() }';
+ }
+ is   $@,    '',            'eval test doesn\'t croak prematurely';
+ is   @w,    0,             'eval did not throw a warning';
+ diag join "\n", 'All warnings:', @w if @w;
 }
 
 {
@@ -102,13 +116,13 @@ sub expect {
   eval "return; no indirect; use indirect::TestRequired2; my \$x = new Bar;";
  }
  is   $@, '', 'second require test doesn\'t croak prematurely';
- @w = grep !/^warn:Attempt\s+to\s+free\s+unreferenced/, @w if $] <= 5.008003;
+ @w = grep !/^warn:Attempt\s+to\s+free\s+unreferenced/, @w if "$]" <= 5.008003;
  my $w = shift @w;
  like $w, expect('Baz', 't/lib/indirect/TestRequired2.pm'),
                                      'second require test caught error for Baz';
  SKIP: {
   skip 'The pragma doesn\'t propagte into eval STRING before perl 5.10' => 1
-                                                               if $] < 5.009005;
+                                                             if "$]" < 5.009005;
   $w = shift @w;
   like $w, expect('Blech'), 'second require test caught error for Blech';
  }
@@ -132,14 +146,14 @@ sub expect {
    new indirect::TestRequired3Z;
   }
  TESTREQUIRED3
- @w = grep !/^warn:Attempt\s+to\s+free\s+unreferenced/, @w if $] <= 5.008003;
+ @w = grep !/^warn:Attempt\s+to\s+free\s+unreferenced/, @w if "$]" <= 5.008003;
  is        $@,          '',
            "pragma leak when reusing callback test doesn't croak prematurely";
  is_deeply \@w,         [ ],
            "pragma leak when reusing callback test doesn't warn";
- is_deeply \@err,       [ map "indirect::TestRequired3$_", qw/X Z/ ],
+ is_deeply \@err,       [ map "indirect::TestRequired3$_", qw<X Z> ],
            "pragma leak when reusing callback test caught the right errors";
- is_deeply \@main::new, [ map "indirect::TestRequired3$_", qw/X Y Z/ ],
+ is_deeply \@main::new, [ map "indirect::TestRequired3$_", qw<X Y Z> ],
            "pragma leak when reusing callback test ran the three constructors";
 }
 

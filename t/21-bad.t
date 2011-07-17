@@ -101,7 +101,7 @@ SKIP:
 SKIP:
    {
     skip 'No space tests on perl 5.11' => 4 + @expected
-                                                  if $] >= 5.011 and $] < 5.012;
+                                              if "$]" >= 5.011 and "$]" < 5.012;
     my $code = $code;
     $code =~ s/\$/\$ \n\t /g;
 
@@ -219,7 +219,7 @@ $obj = new $x qr{foo\s+bar}, 1 .. 1;
 ----
 [ 'new', '$x' ]
 ####
-$obj = new $x(qw/bar baz/);
+$obj = new $x(qw<bar baz>);
 ----
 [ 'new', '$x' ]
 ####
@@ -280,15 +280,15 @@ meh $y 1, 2;
 meh $y, 1, 2;
 ----
 [ 'meh', '$y' ]
-#### $] < 5.010 # use feature 'state'; state $z
+#### "$]" < 5.010 # use feature 'state'; state $z
 meh $z;
 ----
 [ 'meh', '$z' ]
-#### $] < 5.010 # use feature 'state'; state $z
+#### "$]" < 5.010 # use feature 'state'; state $z
 meh $z 1, 2;
 ----
 [ 'meh', '$z' ]
-#### $] < 5.010 # use feature 'state'; state $z
+#### "$]" < 5.010 # use feature 'state'; state $z
 meh $z, 1, 2;
 ----
 [ 'meh', '$z' ]

@@ -84,7 +84,7 @@
 #endif
 
 #ifndef I_WORKAROUND_REQUIRE_PROPAGATION
-# define I_WORKAROUND_REQUIRE_PROPAGATION !I_HAS_PERL(5, 12, 0)
+# define I_WORKAROUND_REQUIRE_PROPAGATION !I_HAS_PERL(5, 10, 1)
 #endif
 
 /* ... Thread safety and multiplicity ...................................... */
@@ -200,6 +200,7 @@ typedef struct {
 #include "ptable.h"
 
 #define ptable_store(T, K, V) ptable_store(aTHX_ (T), (K), (V))
+#define ptable_delete(T, K)   ptable_delete(aTHX_ (T), (K))
 #define ptable_clear(T)       ptable_clear(aTHX_ (T))
 #define ptable_free(T)        ptable_free(aTHX_ (T))
 
@@ -329,7 +330,6 @@ STATIC SV *indirect_tag(pTHX_ SV *value) {
 #define indirect_tag(V) indirect_tag(aTHX_ (V))
  indirect_hint_t *h;
  SV *code = NULL;
- dMY_CXT;
 
  if (SvROK(value)) {
   value = SvRV(value);
@@ -350,10 +350,13 @@ STATIC SV *indirect_tag(pTHX_ SV *value) {
 #endif /* !I_HINT_STRUCT */
 
 #if I_THREADSAFE
- /* We only need for the key to be an unique tag for looking up the value later.
-  * Allocated memory provides convenient unique identifiers, so that's why we
-  * use the hint as the key itself. */
- ptable_hints_store(MY_CXT.tbl, h, h);
+ {
+  dMY_CXT;
+  /* We only need for the key to be an unique tag for looking up the value later
+   * Allocated memory provides convenient unique identifiers, so that's why we
+   * use the hint as the key itself. */
+  ptable_hints_store(MY_CXT.tbl, h, h);
+ }
 #endif /* I_THREADSAFE */
 
  return newSViv(PTR2IV(h));
@@ -362,14 +365,16 @@ STATIC SV *indirect_tag(pTHX_ SV *value) {
 STATIC SV *indirect_detag(pTHX_ const SV *hint) {
 #define indirect_detag(H) indirect_detag(aTHX_ (H))
  indirect_hint_t *h;
- dMY_CXT;
 
  if (!(hint && SvIOK(hint)))
   return NULL;
 
  h = INT2PTR(indirect_hint_t *, SvIVX(hint));
 #if I_THREADSAFE
- h = ptable_fetch(MY_CXT.tbl, h);
+ {
+  dMY_CXT;
+  h = ptable_fetch(MY_CXT.tbl, h);
+ }
 #endif /* I_THREADSAFE */
 
 #if I_WORKAROUND_REQUIRE_PROPAGATION
@@ -384,16 +389,31 @@ STATIC U32 indirect_hash = 0;
 
 STATIC SV *indirect_hint(pTHX) {
 #define indirect_hint() indirect_hint(aTHX)
- SV **val;
+ SV *hint;
 
  if (IN_PERL_RUNTIME)
   return NULL;
 
- val = hv_fetch(GvHV(PL_hintgv), __PACKAGE__, __PACKAGE_LEN__, indirect_hash);
- if (!val)
-  return NULL;
+#ifdef cop_hints_fetch_pvn
+ hint = cop_hints_fetch_pvn(PL_curcop, __PACKAGE__, __PACKAGE_LEN__,
+                                                              indirect_hash, 0);
+#elif I_HAS_PERL(5, 9, 5)
+ hint = Perl_refcounted_he_fetch(aTHX_ PL_curcop->cop_hints_hash,
+                                       NULL,
+                                       __PACKAGE__, __PACKAGE_LEN__,
+                                       0,
+                                       indirect_hash);
+#else
+ {
+  SV **val = hv_fetch(GvHV(PL_hintgv), __PACKAGE__, __PACKAGE_LEN__,
+                                                                 indirect_hash);
+  if (!val)
+   return 0;
+  hint = *val;
+ }
+#endif
 
- return indirect_detag(*val);
+ return indirect_detag(hint);
 }
 
 /* ... op -> source position ............................................... */
@@ -442,7 +462,7 @@ STATIC void indirect_map_delete(pTHX_ const OP *o) {
 #define indirect_map_delete(O) indirect_map_delete(aTHX_ (O))
  dMY_CXT;
 
- ptable_store(MY_CXT.map, o, NULL);
+ ptable_delete(MY_CXT.map, o);
 }
 
 /* --- Check functions ----------------------------------------------------- */
@@ -789,8 +809,6 @@ done:
 STATIC U32 indirect_initialized = 0;
 
 STATIC void indirect_teardown(pTHX_ void *root) {
- dMY_CXT;
-
  if (!indirect_initialized)
   return;
 
@@ -799,10 +817,13 @@ STATIC void indirect_teardown(pTHX_ void *root) {
   return;
 #endif
 
- ptable_free(MY_CXT.map);
+ {
+  dMY_CXT;
+  ptable_free(MY_CXT.map);
 #if I_THREADSAFE
- ptable_hints_free(MY_CXT.tbl);
+  ptable_hints_free(MY_CXT.tbl);
 #endif
+ }
 
  PL_check[OP_CONST]           = MEMBER_TO_FPTR(indirect_old_ck_const);
  indirect_old_ck_const        = 0;

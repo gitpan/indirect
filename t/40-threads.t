@@ -9,14 +9,14 @@ sub skipall {
  Test::More::plan(skip_all => $msg);
 }
 
-use Config qw/%Config/;
+use Config qw<%Config>;
 
 BEGIN {
  my $force = $ENV{PERL_INDIRECT_TEST_THREADS} ? 1 : !1;
  skipall 'This perl wasn\'t built to support threads'
                                                     unless $Config{useithreads};
  skipall 'perl 5.13.4 required to test thread safety'
-                                                unless $force or $] >= 5.013004;
+                                              unless $force or "$]" >= 5.013004;
 }
 
 use threads;
@@ -60,7 +60,7 @@ sub expect {
 SKIP:
    {
     skip 'Hints aren\'t propagated into eval STRING below perl 5.10' => 3
-                                                             unless $] >= 5.010;
+                                                           unless "$]" >= 5.010;
     my $class = "Pineapple$tid";
     my @warns;
     {

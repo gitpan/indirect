@@ -155,7 +155,7 @@ $obj = $pkg    ->   ($cb)   ();
 ####
 $obj = $pkg->$cb( $obj  );
 ####
-$obj = $pkg->$cb(qw/foo bar baz/);
+$obj = $pkg->$cb(qw<foo bar baz>);
 ####
 $obj = $pkg->$meth;
 ####
@@ -192,9 +192,9 @@ meh $x, 1, 2;
 meh $y;
 ####
 meh $y, 1, 2;
-#### $] < 5.010 # use feature 'state'; state $z
+#### "$]" < 5.010 # use feature 'state'; state $z
 meh $z;
-#### $] < 5.010 # use feature 'state'; state $z
+#### "$]" < 5.010 # use feature 'state'; state $z
 meh $z, 1, 2;
 ####
 print;
@@ -208,9 +208,9 @@ print $x "oh hai\n";
 print $y;
 ####
 print $y "dongs\n";
-#### $] < 5.010 # use feature 'state'; state $z
+#### "$]" < 5.010 # use feature 'state'; state $z
 print $z;
-#### $] < 5.010 # use feature 'state'; state $z
+#### "$]" < 5.010 # use feature 'state'; state $z
 print $z "hlagh\n";
 ####
 print STDOUT "bananananananana\n";

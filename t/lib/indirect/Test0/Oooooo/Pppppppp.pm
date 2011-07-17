@@ -9,7 +9,7 @@ use indirect::Test0::Fffff::Vvvvvvv
 	y => sub { };
 
 use indirect::Test0::Fffff::Vvvvvvv
-	t => [xxxx=>qw(xxxxxx xxxxxxx)],
+	t => [ xxxx => qw<xxxxxx xxxxxxx> ],
 	x => sub { $_[0]->method };
 
 1;
