@@ -405,8 +405,7 @@ STATIC SV *indirect_hint(pTHX) {
                                        indirect_hash);
 #else
  {
-  SV **val = hv_fetch(GvHV(PL_hintgv), __PACKAGE__, __PACKAGE_LEN__,
-                                                                 indirect_hash);
+  SV **val = hv_fetch(GvHV(PL_hintgv), __PACKAGE__, __PACKAGE_LEN__, 0);
   if (!val)
    return 0;
   hint = *val;

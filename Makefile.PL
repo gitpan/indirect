@@ -7,12 +7,12 @@ use ExtUtils::MakeMaker;
 my @DEFINES;
 
 # Threads, Windows and 5.8.x don't seem to be best friends
-if ($^O eq 'MSWin32' && $^V lt v5.9.0) {
+if ($^O eq 'MSWin32' and "$]" < 5.009) {
  push @DEFINES, '-DI_MULTIPLICITY=0';
 }
 
 # Fork emulation got "fixed" in 5.10.1
-if ($^O eq 'MSWin32' && $^V lt v5.10.1) {
+if ($^O eq 'MSWin32' and "$]" < 5.010_001) {
  push @DEFINES, '-DI_FORKSAFE=0';
 }
 
@@ -59,7 +59,7 @@ WriteMakefile(
  MIN_PERL_VERSION => 5.008001,
  META_MERGE       => \%META,
  dist             => {
-  PREOP    => "pod2text $file > \$(DISTVNAME)/README",
+  PREOP    => "pod2text -u $file > \$(DISTVNAME)/README",
   COMPRESS => 'gzip -9f', SUFFIX => 'gz'
  },
  clean            => {

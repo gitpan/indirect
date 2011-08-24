@@ -5,10 +5,7 @@ use warnings;
 
 use Test::More tests => 1;
 
-SKIP: {
- skip 'This would require extensive work to be okay with perl 5.8' => 1
-                                                                if "$]" < 5.010;
-
+{
  local %^H = (a => 1);
 
  require indirect;

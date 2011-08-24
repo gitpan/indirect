@@ -1,5 +1,11 @@
 Revision history for indirect
 
+0.25    2011-08-24 15:40 UTC
+        + Fix : RT #69291 is now also fixed for perl 5.8. The pragma will no
+                longer vivify the "indirect" entry in the hints hash %^H on
+                perl 5.8.
+        + Tst : Attempt to make t/50-external.t pass on Cygwin.
+
 0.24    2011-07-17 23:15 UTC
         + Fix : [RT #64521] : "no indirect" leaking into eval.
                 This is currently only fixed for perl 5.10 (perl 5.12 and

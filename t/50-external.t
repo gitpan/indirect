@@ -12,7 +12,8 @@ sub run_perl {
 
  my $SystemRoot   = $ENV{SystemRoot};
  local %ENV;
- $ENV{SystemRoot} = $SystemRoot if $^O eq 'MSWin32' and defined $SystemRoot;
+ $ENV{SystemRoot} = $SystemRoot if  defined $SystemRoot
+                                and ($^O eq 'MSWin32' or $^O eq 'cygwin');
 
  system { $^X } $^X, '-T', map("-I$_", @INC), '-e', $code;
 }
