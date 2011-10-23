@@ -3,40 +3,18 @@
 use strict;
 use warnings;
 
-sub skipall {
- my ($msg) = @_;
- require Test::More;
- Test::More::plan(skip_all => $msg);
-}
+use lib 't/lib';
+use indirect::TestThreads;
 
-use Config qw<%Config>;
-
-BEGIN {
- my $force = $ENV{PERL_INDIRECT_TEST_THREADS} ? 1 : !1;
- skipall 'This perl wasn\'t built to support threads'
-                                                    unless $Config{useithreads};
- skipall 'perl 5.13.4 required to test thread safety'
-                                              unless $force or "$]" >= 5.013004;
-}
-
-use threads;
-
-use Test::More;
-
-BEGIN {
- delete $ENV{PERL_INDIRECT_PM_DISABLE};
- require indirect;
- skipall 'This indirect isn\'t thread safe' unless indirect::I_THREADSAFE();
- plan tests => 1;
- defined and diag "Using threads $_" for $threads::VERSION;
-}
+use Test::Leaner tests => 1;
 
 sub run_perl {
  my $code = shift;
 
- my $SystemRoot   = $ENV{SystemRoot};
+ my ($SystemRoot, $PATH) = @ENV{qw<SystemRoot PATH>};
  local %ENV;
  $ENV{SystemRoot} = $SystemRoot if $^O eq 'MSWin32' and defined $SystemRoot;
+ $ENV{PATH}       = $PATH       if $^O eq 'cygwin'  and defined $PATH;
 
  system { $^X } $^X, '-T', map("-I$_", @INC), '-e', $code;
 }

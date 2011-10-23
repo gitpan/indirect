@@ -212,6 +212,7 @@ typedef struct {
  tTHX    owner;
 #endif
  ptable *map;
+ SV     *global_code;
 } my_cxt_t;
 
 START_MY_CXT
@@ -223,6 +224,9 @@ STATIC SV *indirect_clone(pTHX_ SV *sv, tTHX owner) {
  CLONE_PARAMS  param;
  AV           *stashes = NULL;
  SV           *dupsv;
+
+ if (!sv)
+  return NULL;
 
  if (SvTYPE(sv) == SVt_PVHV && HvNAME_get(sv))
   stashes = newAV();
@@ -253,7 +257,6 @@ STATIC void indirect_ptable_clone(pTHX_ ptable_ent *ent, void *ud_) {
 
  h2       = PerlMemShared_malloc(sizeof *h2);
  h2->code = indirect_clone(h1->code, ud->owner);
- SvREFCNT_inc(h2->code);
 #if I_WORKAROUND_REQUIRE_PROPAGATION
  h2->require_tag = PTR2IV(indirect_clone(INT2PTR(SV *, h1->require_tag),
                                          ud->owner));
@@ -262,7 +265,6 @@ STATIC void indirect_ptable_clone(pTHX_ ptable_ent *ent, void *ud_) {
 #else  /*  I_HINT_STRUCT */
 
  h2 = indirect_clone(h1, ud->owner);
- SvREFCNT_inc(h2);
 
 #endif /* !I_HINT_STRUCT */
 
@@ -274,6 +276,7 @@ STATIC void indirect_ptable_clone(pTHX_ ptable_ent *ent, void *ud_) {
 STATIC void indirect_thread_cleanup(pTHX_ void *ud) {
  dMY_CXT;
 
+ SvREFCNT_dec(MY_CXT.global_code);
  ptable_free(MY_CXT.map);
  ptable_hints_free(MY_CXT.tbl);
 }
@@ -365,21 +368,18 @@ STATIC SV *indirect_tag(pTHX_ SV *value) {
 STATIC SV *indirect_detag(pTHX_ const SV *hint) {
 #define indirect_detag(H) indirect_detag(aTHX_ (H))
  indirect_hint_t *h;
-
- if (!(hint && SvIOK(hint)))
-  return NULL;
+#if I_THREADSAFE || I_WORKAROUND_REQUIRE_PROPAGATION
+ dMY_CXT;
+#endif
 
  h = INT2PTR(indirect_hint_t *, SvIVX(hint));
 #if I_THREADSAFE
- {
-  dMY_CXT;
-  h = ptable_fetch(MY_CXT.tbl, h);
- }
+ h = ptable_fetch(MY_CXT.tbl, h);
 #endif /* I_THREADSAFE */
 
 #if I_WORKAROUND_REQUIRE_PROPAGATION
  if (indirect_require_tag() != h->require_tag)
-  return NULL;
+  return MY_CXT.global_code;
 #endif /* I_WORKAROUND_REQUIRE_PROPAGATION */
 
  return I_HINT_CODE(h);
@@ -389,7 +389,7 @@ STATIC U32 indirect_hash = 0;
 
 STATIC SV *indirect_hint(pTHX) {
 #define indirect_hint() indirect_hint(aTHX)
- SV *hint;
+ SV *hint = NULL;
 
  if (IN_PERL_RUNTIME)
   return NULL;
@@ -406,13 +406,17 @@ STATIC SV *indirect_hint(pTHX) {
 #else
  {
   SV **val = hv_fetch(GvHV(PL_hintgv), __PACKAGE__, __PACKAGE_LEN__, 0);
-  if (!val)
-   return 0;
-  hint = *val;
+  if (val)
+   hint = *val;
  }
 #endif
 
- return indirect_detag(hint);
+ if (hint && SvIOK(hint))
+  return indirect_detag(hint);
+ else {
+  dMY_CXT;
+  return MY_CXT.global_code;
+ }
 }
 
 /* ... op -> source position ............................................... */
@@ -853,10 +857,11 @@ STATIC void indirect_setup(pTHX) {
  {
   MY_CXT_INIT;
 #if I_THREADSAFE
-  MY_CXT.tbl   = ptable_new();
-  MY_CXT.owner = aTHX;
+  MY_CXT.tbl         = ptable_new();
+  MY_CXT.owner       = aTHX;
 #endif
-  MY_CXT.map   = ptable_new();
+  MY_CXT.map         = ptable_new();
+  MY_CXT.global_code = NULL;
  }
 
  indirect_old_ck_const        = PL_check[OP_CONST];
@@ -916,6 +921,7 @@ CLONE(...)
 PROTOTYPE: DISABLE
 PREINIT:
  ptable *t;
+ SV     *global_code_dup;
 PPCODE:
  {
   my_cxt_t ud;
@@ -923,12 +929,14 @@ PPCODE:
   ud.tbl   = t = ptable_new();
   ud.owner = MY_CXT.owner;
   ptable_walk(MY_CXT.tbl, indirect_ptable_clone, &ud);
+  global_code_dup = indirect_clone(MY_CXT.global_code, MY_CXT.owner);
  }
  {
   MY_CXT_CLONE;
-  MY_CXT.map   = ptable_new();
-  MY_CXT.tbl   = t;
-  MY_CXT.owner = aTHX;
+  MY_CXT.map         = ptable_new();
+  MY_CXT.tbl         = t;
+  MY_CXT.owner       = aTHX;
+  MY_CXT.global_code = global_code_dup;
  }
  reap(3, indirect_thread_cleanup, NULL);
  XSRETURN(0);
@@ -942,3 +950,18 @@ CODE:
  RETVAL = indirect_tag(value);
 OUTPUT:
  RETVAL
+
+void
+_global(SV *code)
+PROTOTYPE: $
+PPCODE:
+ if (!SvOK(code))
+  code = NULL;
+ else if (SvROK(code))
+  code = SvRV(code);
+ {
+  dMY_CXT;
+  SvREFCNT_dec(MY_CXT.global_code);
+  MY_CXT.global_code = SvREFCNT_inc(code);
+ }
+ XSRETURN(0);

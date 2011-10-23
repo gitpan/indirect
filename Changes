@@ -1,5 +1,17 @@
 Revision history for indirect
 
+0.26    2011-10-23 14:25 UTC
+        + Add : "no indirect 'global'" enables the pragma for the whole program,
+                except for lexical scopes that "use indirect" explicitely.
+        + Chg : Passing both the 'fatal' and 'hook' options to unimport() is
+                now considered an error, and will result in an exception.
+                unimport() used to consider only the first passed option of
+                those two, and silently ignored the other.
+        + Tst : Test failures of t/41-threads-teardown.t and t/50-external.t on
+                Cygwin should have been addressed.
+        + Tst : Threads tests will not fail anymore if resources constraints
+                prevent the system from creating all the required threads.
+
 0.25    2011-08-24 15:40 UTC
         + Fix : RT #69291 is now also fixed for perl 5.8. The pragma will no
                 longer vivify the "indirect" entry in the hints hash %^H on

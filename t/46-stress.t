@@ -6,7 +6,8 @@ use warnings;
 my $count;
 BEGIN { $count = 1_000 }
 
-use Test::More tests => 2 * $count;
+use lib 't/lib';
+use Test::Leaner tests => 2 * $count;
 
 BEGIN { delete $ENV{PERL_INDIRECT_PM_DISABLE} }
 

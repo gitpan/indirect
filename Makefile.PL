@@ -26,6 +26,7 @@ my $dist = 'indirect';
 $file = "lib/$file.pm";
 
 my %PREREQ_PM = (
+ 'Carp'     => 0,
  'XSLoader' => 0,
 );
 

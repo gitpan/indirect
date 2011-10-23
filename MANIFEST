@@ -19,8 +19,10 @@ t/22-bad-mixed.t
 t/23-bad-notaint.t
 t/30-scope.t
 t/31-hints.t
+t/32-global.t
 t/40-threads.t
 t/41-threads-teardown.t
+t/42-threads-global.t
 t/45-memory.t
 t/46-stress.t
 t/47-stress-use.t
@@ -29,6 +31,7 @@ t/91-pod.t
 t/92-pod-coverage.t
 t/95-portability-files.t
 t/99-kwalitee.t
+t/lib/Test/Leaner.pm
 t/lib/indirect/Test0/Fffff/Vvvvvvv.pm
 t/lib/indirect/Test0/Oooooo/Pppppppp.pm
 t/lib/indirect/Test1/il1.pm
@@ -45,3 +48,5 @@ t/lib/indirect/TestRequired5/b0.pm
 t/lib/indirect/TestRequired5/c0.pm
 t/lib/indirect/TestRequired5/d0.pm
 t/lib/indirect/TestRequired6.pm
+t/lib/indirect/TestRequiredGlobal.pm
+t/lib/indirect/TestThreads.pm

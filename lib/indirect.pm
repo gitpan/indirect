@@ -7,52 +7,58 @@ use warnings;
 
 =head1 NAME
 
-indirect - Lexically warn about using the indirect object syntax.
+indirect - Lexically warn about using the indirect method call syntax.
 
 =head1 VERSION
 
-Version 0.25
+Version 0.26
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.25';
+ $VERSION = '0.26';
 }
 
 =head1 SYNOPSIS
 
-    # In a script
-    no indirect;
+In a script :
+
+    no indirect;               # lexically enables the pragma
     my $x = new Apple 1, 2, 3; # warns
     {
-     use indirect;
-     my $y = new Pear; # ok
+     use indirect;     # lexically disables the pragma
+     my $y = new Pear; # legit, does not warn
      {
-      no indirect hook => sub { die "You really wanted $_[0]\->$_[1] at $_[2]:$_[3]" };
-      my $z = new Pineapple 'fresh'; # croaks 'You really wanted Pineapple->new at blurp.pm:13'
+      # lexically specify an hook called for each indirect construct
+      no indirect hook => sub {
+       die "You really wanted $_[0]\->$_[1] at $_[2]:$_[3]"
+      };
+      my $z = new Pineapple 'fresh'; # croaks 'You really wanted...'
      }
     }
-    try { ... }; # warns
+    try { ... }; # warns if try() hasn't been declared in this package
 
-    no indirect ':fatal';    # or 'FATAL', or ':Fatal' ...
+    no indirect 'fatal';     # or ':fatal', 'FATAL', ':Fatal' ...
     if (defied $foo) { ... } # croaks, note the typo
 
-    # From the command-line
-    perl -M-indirect -e 'my $x = new Banana;' # warns
+Global uses :
 
-    # Or each time perl is ran
-    export PERL5OPT="-M-indirect"
-    perl -e 'my $y = new Coconut;' # warns
+    # Globally enable the pragma from the command-line
+    perl -M-indirect=global -e 'my $x = new Banana;' # warns
+
+    # Globally enforce the pragma each time perl is executed
+    export PERL5OPT="-M-indirect=global,fatal"
+    perl -e 'my $y = new Coconut;' # croaks
 
 =head1 DESCRIPTION
 
-When enabled (or disabled as some may prefer to say, since you actually turn it on by calling C<no indirect>), this pragma warns about indirect object syntax constructs that may have slipped into your code.
+When enabled, this pragma warns about indirect method calls that are present in your code.
 
-This syntax is now considered harmful, since its parsing has many quirks and its use is error prone (when C<swoosh> is not defined, C<swoosh $x> actually compiles to C<< $x->swoosh >>).
-In L<http://www.shadowcat.co.uk/blog/matt-s-trout/indirect-but-still-fatal>, Matt S. Trout gives an example of an indirect construct that can cause a particularly bewildering error.
+The indirect syntax is now considered harmful, since its parsing has many quirks and its use is error prone : when the subroutine C<foo> has not been declared in the current package, C<foo $x> actually compiles to C<< $x->foo >>, and C<< foo { key => 1 } >> to C<< 'key'->foo(1) >>.
+In L<http://www.shadowcat.co.uk/blog/matt-s-trout/indirect-but-still-fatal>, Matt S. Trout gives an example of an undesirable indirect method call on a block that can cause a particularly bewildering error.
 
-It currently does not warn for core functions (C<print>, C<say>, C<exec> or C<system>).
+This pragma currently does not warn for core functions (C<print>, C<say>, C<exec> or C<system>).
 This may change in the future, or may be added as optional features that would be enabled by passing options to C<unimport>.
 
 This module is B<not> a source filter.
@@ -72,7 +78,7 @@ BEGIN {
 
 =head1 METHODS
 
-=head2 C<< unimport [ hook => $hook | ':fatal', 'FATAL', ... ] >>
+=head2 C<< unimport [ 'global', hook => $hook | 'fatal' ] >>
 
 Magically called when C<no indirect @opts> is encountered.
 Turns the module on.
@@ -82,58 +88,104 @@ The policy to apply depends on what is first found in C<@opts> :
 
 =item *
 
-If it is a string that matches C</^:?fatal$/i>, the compilation will croak on the first indirect syntax met.
+If it is a string that matches C</^:?fatal$/i>, the compilation will croak when the first indirect method call is found.
+
+This option is mutually exclusive with the C<'hook'> option.
 
 =item *
 
 If the key/value pair C<< hook => $hook >> comes first, C<$hook> will be called for each error with a string representation of the object as C<$_[0]>, the method name as C<$_[1]>, the current file as C<$_[2]> and the line number as C<$_[3]>.
 If and only if the object is actually a block, C<$_[0]> is assured to start by C<'{'>.
 
+This option is mutually exclusive with the C<'fatal'> option.
+
 =item *
 
-Otherwise, a warning will be emitted for each indirect construct.
+If none of C<fatal> and C<hook> are specified, a warning will be emitted for each indirect method call.
+
+=item *
+
+If C<@opts> contains a string that matches C</^:?global$/i>, the pragma will be globally enabled for B<all> code compiled after the current C<no indirect> statement, except for code that is in the lexical scope of C<use indirect>.
+This option may come indifferently before or after the C<fatal> or C<hook> options, in the case they are also passed to L</unimport>.
+
+The global policy applied is the one resulting of the C<fatal> or C<hook> options, thus defaults to a warning when none of those are specified :
+
+    no indirect 'global';                # warn for any indirect call
+    no indirect qw<global fatal>;        # die on any indirect call
+    no indirect 'global', hook => \&hook # custom global action
+
+Note that if another policy is installed by a C<no indirect> statement further in the code, it will overrule the global policy :
+
+    no indirect 'global';  # warn globally
+    {
+     no indirect 'fatal';  # throw exceptions for this lexical scope
+     ...
+     require Some::Module; # the global policy will apply for the
+                           # compilation phase of this module
+    }
 
 =back
 
 =cut
 
+sub _no_hook_and_fatal {
+ require Carp;
+ Carp::croak("The 'fatal' and 'hook' options are mutually exclusive");
+}
+
 sub unimport {
  shift;
 
- my $hook;
+ my ($global, $fatal, $hook);
+
  while (@_) {
   my $arg = shift;
   if ($arg eq 'hook') {
+   _no_hook_and_fatal() if $fatal;
    $hook = shift;
   } elsif ($arg =~ /^:?fatal$/i) {
-   $hook = sub { die msg(@_) };
+   _no_hook_and_fatal() if defined $hook;
+   $fatal = 1;
+  } elsif ($arg =~ /^:?global$/i) {
+   $global = 1;
   }
-  last if $hook;
  }
- $hook = sub { warn msg(@_) } unless defined $hook;
+
+ unless (defined $hook) {
+  $hook = $fatal ? sub { die msg(@_) } : sub { warn msg(@_) };
+ }
 
  $^H |= 0x00020000;
- $^H{+(__PACKAGE__)} = _tag($hook);
+ if ($global) {
+  delete $^H{+(__PACKAGE__)};
+  _global($hook);
+ } else {
+  $^H{+(__PACKAGE__)} = _tag($hook);
+ }
 
- ();
+ return;
 }
 
 =head2 C<import>
 
 Magically called at each C<use indirect>. Turns the module off.
 
+As explained in L</unimport>'s description, an C<use indirect> statement will lexically override a global policy previously installed by C<no indirect 'global', ...> (if there's one).
+
 =cut
 
 sub import {
- $^H{+(__PACKAGE__)} = undef;
- ();
+ $^H |= 0x00020000;
+ $^H{+(__PACKAGE__)} = _tag(undef);
+
+ return;
 }
 
 =head1 FUNCTIONS
 
 =head2 C<msg $object, $method, $file, $line>
 
-Returns the default error message generated by C<indirect> when an invalid construct is reported.
+Returns the default error message that C<indirect> generates when an indirect method call is reported.
 
 =cut
 
@@ -160,11 +212,11 @@ This will always be true except on Windows where it's false for perl 5.10.0 and 
 
 =head2 C<Indirect call of method "%s" on object "%s" at %s line %d.>
 
-The default warning/exception message thrown when an indirect call on an object is found.
+The default warning/exception message thrown when an indirect method call on an object is found.
 
 =head2 C<Indirect call of method "%s" on a block at %s line %d.>
 
-The default warning/exception message thrown when an indirect call on a block is found.
+The default warning/exception message thrown when an indirect method call on a block is found.
 
 =head1 ENVIRONMENT
 
@@ -181,7 +233,7 @@ If you want to re-enable the pragma later, you also need to reload it by deletin
 
 The implementation was tweaked to work around several limitations of vanilla C<perl> pragmas : it's thread safe, and does not suffer from a C<perl 5.8.x-5.10.0> bug that causes all pragmas to propagate into C<require>d scopes.
 
-Before C<perl> 5.12, C<meth $obj> (no semicolon) at the end of a file is not seen as an indirect object syntax, although it is as soon as there is another token before the end (as in C<meth $obj;> or C<meth $obj 1>).
+Before C<perl> 5.12, C<meth $obj> (no semicolon) at the end of a file is not seen as an indirect method call, although it is as soon as there is another token before the end (as in C<meth $obj;> or C<meth $obj 1>).
 If you use C<perl> 5.12 or greater, those constructs are correctly reported.
 
 With 5.8 perls, the pragma does not propagate into C<eval STRING>.
@@ -197,7 +249,7 @@ L<perl> 5.8.1.
 A C compiler.
 This module may happen to build with a C++ compiler as well, but don't rely on it, as no guarantee is made in this regard.
 
-L<XSLoader> (standard since perl 5.006).
+L<Carp> (standard since perl 5), L<XSLoader> (since perl 5.006).
 
 =head1 AUTHOR
 

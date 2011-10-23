@@ -5,7 +5,9 @@ use warnings;
 
 use Test::More tests => 1;
 
-{
+SKIP: {
+ skip 'This fails on perl 5.11.x even without using indirect' => 1
+                                              if "$]" >= 5.011 and "$]" < 5.012;
  local %^H = (a => 1);
 
  require indirect;

@@ -3,33 +3,10 @@
 use strict;
 use warnings;
 
-sub skipall {
- my ($msg) = @_;
- require Test::More;
- Test::More::plan(skip_all => $msg);
-}
+use lib 't/lib';
+use indirect::TestThreads;
 
-use Config qw<%Config>;
-
-BEGIN {
- my $force = $ENV{PERL_INDIRECT_TEST_THREADS} ? 1 : !1;
- skipall 'This perl wasn\'t built to support threads'
-                                                    unless $Config{useithreads};
- skipall 'perl 5.13.4 required to test thread safety'
-                                              unless $force or "$]" >= 5.013004;
-}
-
-use threads;
-
-use Test::More;
-
-BEGIN {
- delete $ENV{PERL_INDIRECT_PM_DISABLE};
- require indirect;
- skipall 'This indirect isn\'t thread safe' unless indirect::I_THREADSAFE();
- plan tests => 10 * 2 * (2 + 3);
- defined and diag "Using threads $_" for $threads::VERSION;
-}
+use Test::Leaner;
 
 sub expect {
  my ($pkg) = @_;
@@ -79,5 +56,8 @@ SKIP:
  }
 }
 
-my @t = map threads->create(\&try), 1 .. 10;
-$_->join for @t;
+my @threads = map spawn(\&try), 1 .. 10;
+
+$_->join for @threads;
+
+done_testing(scalar(@threads) * 2 * (2 + 3));

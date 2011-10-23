@@ -1,10 +1,10 @@
 {
-   "abstract" : "Lexically warn about using the indirect object syntax.",
+   "abstract" : "Lexically warn about using the indirect method call syntax.",
    "author" : [
       "Vincent Pit <perl@profvince.com>"
    ],
    "dynamic_config" : 1,
-   "generated_by" : "ExtUtils::MakeMaker version 6.59, CPAN::Meta::Converter version 2.112150",
+   "generated_by" : "ExtUtils::MakeMaker version 6.59, CPAN::Meta::Converter version 2.112621",
    "license" : [
       "perl_5"
    ],
@@ -22,6 +22,7 @@
    "prereqs" : {
       "build" : {
          "requires" : {
+            "Carp" : 0,
             "ExtUtils::MakeMaker" : 0,
             "Test::More" : 0,
             "XSLoader" : 0
@@ -34,6 +35,7 @@
       },
       "runtime" : {
          "requires" : {
+            "Carp" : 0,
             "XSLoader" : 0,
             "perl" : "5.008001"
          }
@@ -52,5 +54,5 @@
          "url" : "http://git.profvince.com/?p=perl%2Fmodules%2Findirect.git"
       }
    },
-   "version" : "0.25"
+   "version" : "0.26"
 }

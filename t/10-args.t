@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 4 + 3 + 1;
+use Test::More tests => 4 + 3 + 1 + 2;
 
 BEGIN { delete $ENV{PERL_INDIRECT_PM_DISABLE} }
 
@@ -36,7 +36,7 @@ for my $fatal (':fatal', 'FATAL', ':Fatal') {
   local $SIG{__WARN__} = sub { die "warn:@_" };
   eval <<"  HERE";
    die qq{shouldn't even compile\n};
-   no indirect '$fatal', hook => sub { die 'should not be called' };
+   no indirect '$fatal';
    my \$x = new Croaked;
    \$x = new NotReached;
   HERE
@@ -49,10 +49,34 @@ for my $fatal (':fatal', 'FATAL', ':Fatal') {
   local $SIG{__WARN__} = sub { "warn:@_" };
   eval <<'  HERE';
    die qq{shouldn't even compile\n};
-   no indirect 'whatever', hook => sub { die 'hook:' . join(':', @_) . "\n" }, ':fatal';
+   no indirect 'whatever', hook => sub { die 'hook:' . join(':', @_) . "\n" };
    my $x = new Hooked;
    $x = new AlsoNotReached;
   HERE
  }
  like $@, qr/^hook:Hooked:new:\(eval\s+\d+\):\d+$/, 'calls the specified hook';
+}
+
+{
+ my $no_hook_and_fatal = qr/^The 'fatal' and 'hook' options are mutually exclusive at \(eval \d+\) line \d+/;
+
+ {
+  local $SIG{__WARN__} = sub { die "warn:@_" };
+  eval <<'  HERE';
+   die qq{shouldn't even compile\n};
+   no indirect 'fatal', hook => sub { };
+   new NotReached;
+  HERE
+ }
+ like $@, $no_hook_and_fatal, '"no indirect qw<fatal hook>" croaks';
+
+ {
+  local $SIG{__WARN__} = sub { die "warn:@_" };
+  eval <<'  HERE';
+   die qq{shouldn't even compile\n};
+   no indirect hook => sub { }, 'fatal';
+   new NotReached;
+  HERE
+ }
+ like $@, $no_hook_and_fatal, '"no indirect qw<hook fatal>" croaks';
 }

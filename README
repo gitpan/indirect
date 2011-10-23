@@ -1,58 +1,67 @@
 NAME
-    indirect - Lexically warn about using the indirect object syntax.
+    indirect - Lexically warn about using the indirect method call syntax.
 
 VERSION
-    Version 0.25
+    Version 0.26
 
 SYNOPSIS
-        # In a script
-        no indirect;
+    In a script :
+
+        no indirect;               # lexically enables the pragma
         my $x = new Apple 1, 2, 3; # warns
         {
-         use indirect;
-         my $y = new Pear; # ok
+         use indirect;     # lexically disables the pragma
+         my $y = new Pear; # legit, does not warn
          {
-          no indirect hook => sub { die "You really wanted $_[0]\->$_[1] at $_[2]:$_[3]" };
-          my $z = new Pineapple 'fresh'; # croaks 'You really wanted Pineapple->new at blurp.pm:13'
+          # lexically specify an hook called for each indirect construct
+          no indirect hook => sub {
+           die "You really wanted $_[0]\->$_[1] at $_[2]:$_[3]"
+          };
+          my $z = new Pineapple 'fresh'; # croaks 'You really wanted...'
          }
         }
-        try { ... }; # warns
+        try { ... }; # warns if try() hasn't been declared in this package
 
-        no indirect ':fatal';    # or 'FATAL', or ':Fatal' ...
+        no indirect 'fatal';     # or ':fatal', 'FATAL', ':Fatal' ...
         if (defied $foo) { ... } # croaks, note the typo
 
-        # From the command-line
-        perl -M-indirect -e 'my $x = new Banana;' # warns
+    Global uses :
 
-        # Or each time perl is ran
-        export PERL5OPT="-M-indirect"
-        perl -e 'my $y = new Coconut;' # warns
+        # Globally enable the pragma from the command-line
+        perl -M-indirect=global -e 'my $x = new Banana;' # warns
+
+        # Globally enforce the pragma each time perl is executed
+        export PERL5OPT="-M-indirect=global,fatal"
+        perl -e 'my $y = new Coconut;' # croaks
 
 DESCRIPTION
-    When enabled (or disabled as some may prefer to say, since you actually
-    turn it on by calling "no indirect"), this pragma warns about indirect
-    object syntax constructs that may have slipped into your code.
+    When enabled, this pragma warns about indirect method calls that are
+    present in your code.
 
-    This syntax is now considered harmful, since its parsing has many quirks
-    and its use is error prone (when "swoosh" is not defined, "swoosh $x"
-    actually compiles to "$x->swoosh"). In
+    The indirect syntax is now considered harmful, since its parsing has
+    many quirks and its use is error prone : when the subroutine "foo" has
+    not been declared in the current package, "foo $x" actually compiles to
+    "$x->foo", and "foo { key => 1 }" to "'key'->foo(1)". In
     <http://www.shadowcat.co.uk/blog/matt-s-trout/indirect-but-still-fatal>,
-    Matt S. Trout gives an example of an indirect construct that can cause a
-    particularly bewildering error.
+    Matt S. Trout gives an example of an undesirable indirect method call on
+    a block that can cause a particularly bewildering error.
 
-    It currently does not warn for core functions ("print", "say", "exec" or
-    "system"). This may change in the future, or may be added as optional
-    features that would be enabled by passing options to "unimport".
+    This pragma currently does not warn for core functions ("print", "say",
+    "exec" or "system"). This may change in the future, or may be added as
+    optional features that would be enabled by passing options to
+    "unimport".
 
     This module is not a source filter.
 
 METHODS
-  "unimport [ hook => $hook | ':fatal', 'FATAL', ... ]"
+  "unimport [ 'global', hook => $hook | 'fatal' ]"
     Magically called when "no indirect @opts" is encountered. Turns the
     module on. The policy to apply depends on what is first found in @opts :
 
     *   If it is a string that matches "/^:?fatal$/i", the compilation will
-        croak on the first indirect syntax met.
+        croak when the first indirect method call is found.
+
+        This option is mutually exclusive with the 'hook' option.
 
     *   If the key/value pair "hook => $hook" comes first, $hook will be
         called for each error with a string representation of the object as
@@ -60,15 +69,48 @@ METHODS
         line number as $_[3]. If and only if the object is actually a block,
         $_[0] is assured to start by '{'.
 
-    *   Otherwise, a warning will be emitted for each indirect construct.
+        This option is mutually exclusive with the 'fatal' option.
+
+    *   If none of "fatal" and "hook" are specified, a warning will be
+        emitted for each indirect method call.
+
+    *   If @opts contains a string that matches "/^:?global$/i", the pragma
+        will be globally enabled for all code compiled after the current "no
+        indirect" statement, except for code that is in the lexical scope of
+        "use indirect". This option may come indifferently before or after
+        the "fatal" or "hook" options, in the case they are also passed to
+        "unimport".
+
+        The global policy applied is the one resulting of the "fatal" or
+        "hook" options, thus defaults to a warning when none of those are
+        specified :
+
+            no indirect 'global';                # warn for any indirect call
+            no indirect qw<global fatal>;        # die on any indirect call
+            no indirect 'global', hook => \&hook # custom global action
+
+        Note that if another policy is installed by a "no indirect"
+        statement further in the code, it will overrule the global policy :
+
+            no indirect 'global';  # warn globally
+            {
+             no indirect 'fatal';  # throw exceptions for this lexical scope
+             ...
+             require Some::Module; # the global policy will apply for the
+                                   # compilation phase of this module
+            }
 
   "import"
     Magically called at each "use indirect". Turns the module off.
 
+    As explained in "unimport"'s description, an "use indirect" statement
+    will lexically override a global policy previously installed by "no
+    indirect 'global', ..." (if there's one).
+
 FUNCTIONS
   "msg $object, $method, $file, $line"
-    Returns the default error message generated by "indirect" when an
-    invalid construct is reported.
+    Returns the default error message that "indirect" generates when an
+    indirect method call is reported.
 
 CONSTANTS
   "I_THREADSAFE"
@@ -82,12 +124,12 @@ CONSTANTS
 
 DIAGNOSTICS
   "Indirect call of method "%s" on object "%s" at %s line %d."
-    The default warning/exception message thrown when an indirect call on an
-    object is found.
+    The default warning/exception message thrown when an indirect method
+    call on an object is found.
 
   "Indirect call of method "%s" on a block at %s line %d."
-    The default warning/exception message thrown when an indirect call on a
-    block is found.
+    The default warning/exception message thrown when an indirect method
+    call on a block is found.
 
 ENVIRONMENT
   "PERL_INDIRECT_PM_DISABLE"
@@ -109,10 +151,9 @@ CAVEATS
     "require"d scopes.
 
     Before "perl" 5.12, "meth $obj" (no semicolon) at the end of a file is
-    not seen as an indirect object syntax, although it is as soon as there
-    is another token before the end (as in "meth $obj;" or "meth $obj 1").
-    If you use "perl" 5.12 or greater, those constructs are correctly
-    reported.
+    not seen as an indirect method call, although it is as soon as there is
+    another token before the end (as in "meth $obj;" or "meth $obj 1"). If
+    you use "perl" 5.12 or greater, those constructs are correctly reported.
 
     With 5.8 perls, the pragma does not propagate into "eval STRING". This
     is due to a shortcoming in the way perl handles the hints hash, which is
@@ -127,7 +168,7 @@ DEPENDENCIES
     A C compiler. This module may happen to build with a C++ compiler as
     well, but don't rely on it, as no guarantee is made in this regard.
 
-    XSLoader (standard since perl 5.006).
+    Carp (standard since perl 5), XSLoader (since perl 5.006).
 
 AUTHOR
     Vincent Pit, "<perl at profvince.com>", <http://www.profvince.com>.
