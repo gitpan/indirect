@@ -11,13 +11,13 @@ indirect - Lexically warn about using the indirect method call syntax.
 
 =head1 VERSION
 
-Version 0.26
+Version 0.27
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.26';
+ $VERSION = '0.27';
 }
 
 =head1 SYNOPSIS
@@ -78,7 +78,14 @@ BEGIN {
 
 =head1 METHODS
 
-=head2 C<< unimport [ 'global', hook => $hook | 'fatal' ] >>
+=head2 C<unimport>
+
+    no indirect;
+    no indirect 'fatal';
+    no indirect hook => sub { my ($obj, $name, $file, $line) = @_; ... };
+    no indirect 'global';
+    no indirect 'global, 'fatal';
+    no indirect 'global', hook => sub { ... };
 
 Magically called when C<no indirect @opts> is encountered.
 Turns the module on.
@@ -168,6 +175,8 @@ sub unimport {
 
 =head2 C<import>
 
+    use indirect;
+
 Magically called at each C<use indirect>. Turns the module off.
 
 As explained in L</unimport>'s description, an C<use indirect> statement will lexically override a global policy previously installed by C<no indirect 'global', ...> (if there's one).
@@ -183,7 +192,9 @@ sub import {
 
 =head1 FUNCTIONS
 
-=head2 C<msg $object, $method, $file, $line>
+=head2 C<msg>
+
+    my $msg = msg($object, $method, $file, $line);
 
 Returns the default error message that C<indirect> generates when an indirect method call is reported.
 
@@ -278,7 +289,7 @@ Andrew Main and Florian Ragwitz, for testing on real-life code and reporting iss
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2008,2009,2010,2011 Vincent Pit, all rights reserved.
+Copyright 2008,2009,2010,2011,2012,2013 Vincent Pit, all rights reserved.
 
 This program is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
 

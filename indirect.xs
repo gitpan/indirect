@@ -182,10 +182,10 @@ typedef SV indirect_hint_t;
  * thread cleanup. */
 
 typedef struct {
+ char   *buf;
  STRLEN  pos;
  STRLEN  size;
  STRLEN  len;
- char   *buf;
  line_t  line;
 } indirect_op_info_t;
 
@@ -393,6 +393,11 @@ STATIC SV *indirect_hint(pTHX) {
 
  if (IN_PERL_RUNTIME)
   return NULL;
+
+#if I_HAS_PERL(5, 10, 0) || defined(PL_parser)
+ if (!PL_parser)
+  return NULL;
+#endif
 
 #ifdef cop_hints_fetch_pvn
  hint = cop_hints_fetch_pvn(PL_curcop, __PACKAGE__, __PACKAGE_LEN__,

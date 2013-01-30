@@ -29,9 +29,11 @@ t/47-stress-use.t
 t/50-external.t
 t/91-pod.t
 t/92-pod-coverage.t
+t/93-pod-spelling.t
 t/95-portability-files.t
 t/99-kwalitee.t
 t/lib/Test/Leaner.pm
+t/lib/VPIT/TestHelpers.pm
 t/lib/indirect/Test0/Fffff/Vvvvvvv.pm
 t/lib/indirect/Test0/Oooooo/Pppppppp.pm
 t/lib/indirect/Test1/il1.pm

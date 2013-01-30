@@ -2,7 +2,7 @@ NAME
     indirect - Lexically warn about using the indirect method call syntax.
 
 VERSION
-    Version 0.26
+    Version 0.27
 
 SYNOPSIS
     In a script :
@@ -54,7 +54,14 @@ DESCRIPTION
     This module is not a source filter.
 
 METHODS
-  "unimport [ 'global', hook => $hook | 'fatal' ]"
+  "unimport"
+        no indirect;
+        no indirect 'fatal';
+        no indirect hook => sub { my ($obj, $name, $file, $line) = @_; ... };
+        no indirect 'global';
+        no indirect 'global, 'fatal';
+        no indirect 'global', hook => sub { ... };
+
     Magically called when "no indirect @opts" is encountered. Turns the
     module on. The policy to apply depends on what is first found in @opts :
 
@@ -101,6 +108,8 @@ METHODS
             }
 
   "import"
+        use indirect;
+
     Magically called at each "use indirect". Turns the module off.
 
     As explained in "unimport"'s description, an "use indirect" statement
@@ -108,7 +117,9 @@ METHODS
     indirect 'global', ..." (if there's one).
 
 FUNCTIONS
-  "msg $object, $method, $file, $line"
+  "msg"
+        my $msg = msg($object, $method, $file, $line);
+
     Returns the default error message that "indirect" generates when an
     indirect method call is reported.
 
@@ -197,7 +208,8 @@ ACKNOWLEDGEMENTS
     reporting issues.
 
 COPYRIGHT & LICENSE
-    Copyright 2008,2009,2010,2011 Vincent Pit, all rights reserved.
+    Copyright 2008,2009,2010,2011,2012,2013 Vincent Pit, all rights
+    reserved.
 
     This program is free software; you can redistribute it and/or modify it
     under the same terms as Perl itself.

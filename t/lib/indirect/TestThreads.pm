@@ -5,38 +5,22 @@ use warnings;
 
 use Config qw<%Config>;
 
-sub skipall {
- my ($msg) = @_;
- require Test::Leaner;
- Test::Leaner::plan(skip_all => $msg);
-}
-
-sub diag {
- require Test::Leaner;
- Test::Leaner::diag(@_);
-}
+use VPIT::TestHelpers;
 
 sub import {
  shift;
 
  require indirect;
 
- skipall 'This indirect isn\'t thread safe' unless indirect::I_THREADSAFE();
+ skip_all 'This indirect isn\'t thread safe' unless indirect::I_THREADSAFE();
 
  my $force = $ENV{PERL_INDIRECT_TEST_THREADS} ? 1 : !1;
- skipall 'This perl wasn\'t built to support threads'
+ skip_all 'This perl wasn\'t built to support threads'
                                                     unless $Config{useithreads};
- skipall 'perl 5.13.4 required to test thread safety'
+ skip_all 'perl 5.13.4 required to test thread safety'
                                               unless $force or "$]" >= 5.013004;
 
- my $t_v = $force ? '0' : '1.67';
- my $has_threads =  do {
-  local $@;
-  eval "use threads $t_v; 1";
- };
- skipall "threads $t_v required to test thread safety" unless $has_threads;
-
- defined and diag "Using threads $_" for $threads::VERSION;
+ load_or_skip_all('threads', $force ? '0' : '1.67', [ ]);
 
  my %exports = (
   spawn => \&spawn,

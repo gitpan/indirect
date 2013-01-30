@@ -1,5 +1,11 @@
 Revision history for indirect
 
+0.27    2013-01-30 19:00 UTC
+        + Fix : [RT #82562] : indirect/Devel::CallParser interaction
+                indirect has been taught to play nicely with Devel::CallParser.
+                Thanks Andrew Main for the patch.
+        + Tst : Author tests overhaul.
+
 0.26    2011-10-23 14:25 UTC
         + Add : "no indirect 'global'" enables the pragma for the whole program,
                 except for lexical scopes that "use indirect" explicitely.

@@ -60,4 +60,6 @@ my @threads = map spawn(\&try), 1 .. 10;
 
 $_->join for @threads;
 
-done_testing(scalar(@threads) * 2 * (2 + 3));
+pass 'done';
+
+done_testing(scalar(@threads) * 2 * (2 + 3) + 1);

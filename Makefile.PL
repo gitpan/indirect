@@ -30,14 +30,18 @@ my %PREREQ_PM = (
  'XSLoader' => 0,
 );
 
+my %BUILD_REQUIRES =(
+ 'ExtUtils::MakeMaker' => 0,
+ 'Test::More'          => 0,
+ %PREREQ_PM,
+);
+
 my %META = (
  configure_requires => {
   'ExtUtils::MakeMaker' => 0,
  },
  build_requires => {
-  'ExtUtils::MakeMaker' => 0,
-  'Test::More'          => 0,
-  %PREREQ_PM,
+  %BUILD_REQUIRES,
  },
  dynamic_config => 1,
  resources => {
@@ -56,14 +60,15 @@ WriteMakefile(
  ABSTRACT_FROM    => $file,
  PL_FILES         => {},
  @DEFINES,
+ BUILD_REQUIRES   => \%BUILD_REQUIRES,
  PREREQ_PM        => \%PREREQ_PM,
- MIN_PERL_VERSION => 5.008001,
+ MIN_PERL_VERSION => '5.008001',
  META_MERGE       => \%META,
  dist             => {
   PREOP    => "pod2text -u $file > \$(DISTVNAME)/README",
   COMPRESS => 'gzip -9f', SUFFIX => 'gz'
  },
  clean            => {
-  FILES => "$dist-* *.gcov *.gcda *.gcno cover_db Debian_CPANTS.txt"
+  FILES => "$dist-* *.gcov *.gcda *.gcno cover_db Debian_CPANTS.txt*"
  },
 );
