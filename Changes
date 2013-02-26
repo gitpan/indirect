@@ -1,5 +1,17 @@
 Revision history for indirect
 
+0.28    2013-02-26 17:05 UTC
+        + Fix : [RT #83450] : newlines confuse indirect
+                Perl sometimes resets the line buffer between the object and
+                the method name (e.g. for "sort Class\n->method" outside of
+                eval), and this could cause direct method calls to be reported
+                as indirect.
+                Thanks Gianni Ceccarelli for reporting.
+        + Fix : Check functions are now replaced and restored in a thread-safe
+                manner, either by using the wrap_op_checker() function from perl
+                when it is available (starting from perl 5.16) or by taking the
+                OP_REFCNT mutex on older perls.
+
 0.27    2013-01-30 19:00 UTC
         + Fix : [RT #82562] : indirect/Devel::CallParser interaction
                 indirect has been taught to play nicely with Devel::CallParser.

@@ -35,8 +35,12 @@
 # define SvPVX_const SvPVX
 #endif
 
-#ifndef SvREFCNT_inc_simple_NN
-# define SvREFCNT_inc_simple_NN SvREFCNT_inc
+#ifndef SvREFCNT_inc_simple_void_NN
+# ifdef SvREFCNT_inc_simple_NN
+#  define SvREFCNT_inc_simple_void_NN SvREFCNT_inc_simple_NN
+# else
+#  define SvREFCNT_inc_simple_void_NN SvREFCNT_inc
+# endif
 #endif
 
 #ifndef sv_catpvn_nomg
@@ -127,6 +131,44 @@
 # undef  MY_CXT_CLONE
 # define MY_CXT_CLONE NOOP
 #endif
+
+#if defined(OP_CHECK_MUTEX_LOCK) && defined(OP_CHECK_MUTEX_UNLOCK)
+# define I_CHECK_MUTEX_LOCK   OP_CHECK_MUTEX_LOCK
+# define I_CHECK_MUTEX_UNLOCK OP_CHECK_MUTEX_UNLOCK
+#else
+# define I_CHECK_MUTEX_LOCK   OP_REFCNT_LOCK
+# define I_CHECK_MUTEX_UNLOCK OP_REFCNT_UNLOCK
+#endif
+
+typedef OP *(*indirect_ck_t)(pTHX_ OP *);
+
+#ifdef wrap_op_checker
+
+# define indirect_ck_replace(T, NC, OCP) wrap_op_checker((T), (NC), (OCP))
+
+#else
+
+STATIC void indirect_ck_replace(pTHX_ OPCODE type, indirect_ck_t new_ck, indirect_ck_t *old_ck_p) {
+#define indirect_ck_replace(T, NC, OCP) indirect_ck_replace(aTHX_ (T), (NC), (OCP))
+ I_CHECK_MUTEX_LOCK;
+ if (!*old_ck_p) {
+  *old_ck_p      = PL_check[type];
+  PL_check[type] = new_ck;
+ }
+ I_CHECK_MUTEX_UNLOCK;
+}
+
+#endif
+
+STATIC void indirect_ck_restore(pTHX_ OPCODE type, indirect_ck_t *old_ck_p) {
+#define indirect_ck_restore(T, OCP) indirect_ck_restore(aTHX_ (T), (OCP))
+ I_CHECK_MUTEX_LOCK;
+ if (*old_ck_p) {
+  PL_check[type] = *old_ck_p;
+  *old_ck_p      = 0;
+ }
+ I_CHECK_MUTEX_UNLOCK;
+}
 
 /* --- Helpers ------------------------------------------------------------- */
 
@@ -338,7 +380,7 @@ STATIC SV *indirect_tag(pTHX_ SV *value) {
   value = SvRV(value);
   if (SvTYPE(value) >= SVt_PVCV) {
    code = value;
-   SvREFCNT_inc_simple_NN(code);
+   SvREFCNT_inc_simple_void_NN(code);
   }
  }
 
@@ -475,33 +517,66 @@ STATIC void indirect_map_delete(pTHX_ const OP *o) {
 
 /* --- Check functions ----------------------------------------------------- */
 
-STATIC int indirect_find(pTHX_ SV *sv, const char *s, STRLEN *pos) {
-#define indirect_find(N, S, P) indirect_find(aTHX_ (N), (S), (P))
- STRLEN len;
- const char *p, *r = SvPV_const(sv, len);
+STATIC STRLEN indirect_nextline(const char *s, STRLEN len) {
+ STRLEN i;
 
- if (len >= 1 && *r == '$') {
-  ++r;
-  --len;
-  s = strchr(s, '$');
-  if (!s)
-   return 0;
+ for (i = 0; i < len; ++i) {
+  if (s[i] == '\n') {
+   ++i;
+   while (i < len && s[i] == '\r')
+    ++i;
+   break;
+  }
  }
 
- p = s;
+ return i;
+}
+
+STATIC int indirect_find(pTHX_ SV *name_sv, const char *line_bufptr, STRLEN *name_pos) {
+#define indirect_find(NSV, LBP, NP) indirect_find(aTHX_ (NSV), (LBP), (NP))
+ STRLEN      name_len, line_len;
+ const char *name, *name_end;
+ const char *line, *line_end;
+ const char *p, *t, *u;
+
+ line     = SvPV_const(PL_linestr, line_len);
+ line_end = line + line_len;
+
+ name = SvPV_const(name_sv, name_len);
+ if (name_len >= 1 && *name == '$') {
+  ++name;
+  --name_len;
+  while (line_bufptr < line_end && *line_bufptr != '$')
+   ++line_bufptr;
+  if (line_bufptr >= line_end)
+   return 0;
+ }
+ name_end = name + name_len;
+
+ p = line_bufptr;
  while (1) {
-  p = strstr(p, r);
+  p = ninstr(p, line_end, name, name_end);
   if (!p)
    return 0;
-  if (!isALNUM(p[len]))
+  if (!isALNUM(p[name_len]))
    break;
-  /* p points to a word that has r as prefix, skip the rest of the word */
-  p += len + 1;
+  /* p points to a word that has name as prefix, skip the rest of the word */
+  p += name_len + 1;
   while (isALNUM(*p))
    ++p;
  }
 
- *pos = p - SvPVX_const(PL_linestr);
+ t = line;
+ u = t;
+ while (t <= p) {
+  STRLEN i = indirect_nextline(t, line_len);
+  if (i >= line_len)
+   break;
+  u         = t;
+  t        += i;
+  line_len -= i;
+ }
+ *name_pos = p - u;
 
  return 1;
 }
@@ -780,7 +855,8 @@ STATIC OP *indirect_ck_entersub(pTHX_ OP *o) {
   /* When positions are identical, the method and the object must have the
    * same name. But it also means that it is an indirect call, as "foo->foo"
    * results in different positions. */
-  if (moi->pos <= ooi->pos) {
+  if (   moi->line < ooi->line
+      || (moi->line == ooi->line && moi->pos <= ooi->pos)) {
    SV *file;
    dSP;
 
@@ -833,23 +909,15 @@ STATIC void indirect_teardown(pTHX_ void *root) {
 #endif
  }
 
- PL_check[OP_CONST]           = MEMBER_TO_FPTR(indirect_old_ck_const);
- indirect_old_ck_const        = 0;
- PL_check[OP_RV2SV]           = MEMBER_TO_FPTR(indirect_old_ck_rv2sv);
- indirect_old_ck_rv2sv        = 0;
- PL_check[OP_PADANY]          = MEMBER_TO_FPTR(indirect_old_ck_padany);
- indirect_old_ck_padany       = 0;
- PL_check[OP_SCOPE]           = MEMBER_TO_FPTR(indirect_old_ck_scope);
- indirect_old_ck_scope        = 0;
- PL_check[OP_LINESEQ]         = MEMBER_TO_FPTR(indirect_old_ck_lineseq);
- indirect_old_ck_lineseq      = 0;
+ indirect_ck_restore(OP_CONST,   &indirect_old_ck_const);
+ indirect_ck_restore(OP_RV2SV,   &indirect_old_ck_rv2sv);
+ indirect_ck_restore(OP_PADANY,  &indirect_old_ck_padany);
+ indirect_ck_restore(OP_SCOPE,   &indirect_old_ck_scope);
+ indirect_ck_restore(OP_LINESEQ, &indirect_old_ck_lineseq);
 
- PL_check[OP_METHOD]          = MEMBER_TO_FPTR(indirect_old_ck_method);
- indirect_old_ck_method       = 0;
- PL_check[OP_METHOD_NAMED]    = MEMBER_TO_FPTR(indirect_old_ck_method_named);
- indirect_old_ck_method_named = 0;
- PL_check[OP_ENTERSUB]        = MEMBER_TO_FPTR(indirect_old_ck_entersub);
- indirect_old_ck_entersub     = 0;
+ indirect_ck_restore(OP_METHOD,       &indirect_old_ck_method);
+ indirect_ck_restore(OP_METHOD_NAMED, &indirect_old_ck_method_named);
+ indirect_ck_restore(OP_ENTERSUB,     &indirect_old_ck_entersub);
 
  indirect_initialized = 0;
 }
@@ -869,23 +937,18 @@ STATIC void indirect_setup(pTHX) {
   MY_CXT.global_code = NULL;
  }
 
- indirect_old_ck_const        = PL_check[OP_CONST];
- PL_check[OP_CONST]           = MEMBER_TO_FPTR(indirect_ck_const);
- indirect_old_ck_rv2sv        = PL_check[OP_RV2SV];
- PL_check[OP_RV2SV]           = MEMBER_TO_FPTR(indirect_ck_rv2sv);
- indirect_old_ck_padany       = PL_check[OP_PADANY];
- PL_check[OP_PADANY]          = MEMBER_TO_FPTR(indirect_ck_padany);
- indirect_old_ck_scope        = PL_check[OP_SCOPE];
- PL_check[OP_SCOPE]           = MEMBER_TO_FPTR(indirect_ck_scope);
- indirect_old_ck_lineseq      = PL_check[OP_LINESEQ];
- PL_check[OP_LINESEQ]         = MEMBER_TO_FPTR(indirect_ck_scope);
+ indirect_ck_replace(OP_CONST,   indirect_ck_const,  &indirect_old_ck_const);
+ indirect_ck_replace(OP_RV2SV,   indirect_ck_rv2sv,  &indirect_old_ck_rv2sv);
+ indirect_ck_replace(OP_PADANY,  indirect_ck_padany, &indirect_old_ck_padany);
+ indirect_ck_replace(OP_SCOPE,   indirect_ck_scope,  &indirect_old_ck_scope);
+ indirect_ck_replace(OP_LINESEQ, indirect_ck_scope,  &indirect_old_ck_lineseq);
 
- indirect_old_ck_method       = PL_check[OP_METHOD];
- PL_check[OP_METHOD]          = MEMBER_TO_FPTR(indirect_ck_method);
- indirect_old_ck_method_named = PL_check[OP_METHOD_NAMED];
- PL_check[OP_METHOD_NAMED]    = MEMBER_TO_FPTR(indirect_ck_method_named);
- indirect_old_ck_entersub     = PL_check[OP_ENTERSUB];
- PL_check[OP_ENTERSUB]        = MEMBER_TO_FPTR(indirect_ck_entersub);
+ indirect_ck_replace(OP_METHOD,       indirect_ck_method,
+                                      &indirect_old_ck_method);
+ indirect_ck_replace(OP_METHOD_NAMED, indirect_ck_method_named,
+                                      &indirect_old_ck_method_named);
+ indirect_ck_replace(OP_ENTERSUB,     indirect_ck_entersub,
+                                      &indirect_old_ck_entersub);
 
 #if I_MULTIPLICITY
  call_atexit(indirect_teardown, aTHX);

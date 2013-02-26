@@ -9,7 +9,7 @@ package main;
 use strict;
 use warnings;
 
-use Test::More tests => 101 * 8;
+use Test::More tests => 109 * 8 + 10;
 
 BEGIN { delete $ENV{PERL_INDIRECT_PM_DISABLE} }
 
@@ -69,6 +69,98 @@ SKIP:
    }
   }
  }
+}
+
+# These tests must be run outside of eval to be meaningful.
+{
+ sub Zlott::Owww::new { }
+
+ my (@warns, $hook, $desc, $id);
+ BEGIN {
+  $hook = sub { push @warns, indirect::msg(@_) };
+  $desc = "test sort and line endings %d: no indirect construct";
+  $id   = 1;
+ }
+
+ BEGIN { @warns = () }
+ {
+  no indirect hook => $hook;
+  my @stuff = sort Zlott::Owww
+          ->new;
+ }
+ BEGIN { is_deeply \@warns, [ ], sprintf $desc, $id++ }
+
+ BEGIN { @warns = () }
+ {
+  no indirect hook => $hook;
+  my @stuff = sort Zlott::Owww
+               ->new;
+ };
+ BEGIN { is_deeply \@warns, [ ], sprintf $desc, $id++ }
+
+ BEGIN { @warns = () }
+ {
+  no indirect hook => $hook;
+  my @stuff = sort Zlott::Owww
+                 ->new;
+ }
+ BEGIN { is_deeply \@warns, [ ], sprintf $desc, $id++ }
+
+ BEGIN { @warns = () }
+ {
+  no indirect hook => $hook;
+  my @stuff = sort Zlott::Owww
+                  ->new;
+ }
+ BEGIN { is_deeply \@warns, [ ], sprintf $desc, $id++ }
+
+ BEGIN { @warns = () }
+ {
+  no indirect hook => $hook;
+  my @stuff = sort Zlott::Owww
+                   ->new;
+ }
+ BEGIN { is_deeply \@warns, [ ], sprintf $desc, $id++ }
+
+ BEGIN { @warns = () }
+ {
+  no indirect hook => $hook;
+  my @stuff = sort Zlott::Owww
+                     ->new;
+ }
+ BEGIN { is_deeply \@warns, [ ], sprintf $desc, $id++ }
+
+ BEGIN { @warns = () }
+ {
+  no indirect hook => $hook;
+  my @stuff = sort Zlott::Owww
+                       ->new;
+ }
+ BEGIN { is_deeply \@warns, [ ], sprintf $desc, $id++ }
+
+ BEGIN { @warns = () }
+ {
+  no indirect hook => $hook;
+  my @stuff = sort Zlott::Owww
+                          ->new;
+ }
+ BEGIN { is_deeply \@warns, [ ], sprintf $desc, $id++ }
+
+ BEGIN { @warns = () }
+ {
+  no indirect hook => $hook;
+  my @stuff = sort Zlott::Owww
+                            ->new;
+ }
+ BEGIN { is_deeply \@warns, [ ], sprintf $desc, $id++ }
+
+ BEGIN { @warns = () }
+ {
+  no indirect hook => $hook;
+  my @stuff = sort Zlott::Owww
+                             ->new;
+ }
+ BEGIN { is_deeply \@warns, [ ], sprintf $desc, $id++ }
 }
 
 __DATA__
@@ -310,3 +402,27 @@ zap { 1; };
 zap { 1; 1; };
 ####
 zap { zap { }; 1; };
+####
+my @stuff = sort Hlagh
+     ->new;
+####
+my @stuff = sort Hlagh
+              ->new;
+####
+my @stuff = sort Hlagh
+               ->new;
+####
+my @stuff = sort Hlagh
+                ->new;
+####
+my @stuff = sort Hlagh
+                 ->new;
+####
+my @stuff = sort Hlagh
+                   ->new;
+####
+my @stuff = sort Hlagh
+                     ->new;
+####
+my @stuff = sort Hlagh
+                        ->new;
