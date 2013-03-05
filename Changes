@@ -1,5 +1,17 @@
 Revision history for indirect
 
+0.29    2013-03-05 01:30 UTC
+        + Fix : [RT #83659] : false positives
+                Proper method calls in string-like environments (like
+                "@{[ $x->new ]}" will no longer be reported as indirect.
+                This was a regression in 0.28.
+                Thanks Andrew Main for reporting.
+        + Fix : Broken linkage on Windows with gcc 3.4, which appears in
+                particular when using ActivePerl's default compiler suite.
+                For those setups, the indirect shared library will now be
+                linked against the perl dll directly (instead of the import
+                library).
+
 0.28    2013-02-26 17:05 UTC
         + Fix : [RT #83450] : newlines confuse indirect
                 Perl sometimes resets the line buffer between the object and

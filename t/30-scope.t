@@ -6,7 +6,7 @@ use warnings;
 my $tests;
 BEGIN { $tests = 18 }
 
-use Test::More tests => (1 + $tests + 1) + 2 + 3 + 3 + 3 + 5 + 4 + 5;
+use Test::More tests => (1 + $tests + 1) + 2 + 3 + 3 + 3 + 5 + 4 + 5 + 4;
 
 BEGIN { delete $ENV{PERL_INDIRECT_PM_DISABLE} }
 
@@ -15,9 +15,11 @@ use lib 't/lib';
 my %wrong = map { $_ => 1 } 2, 3, 5, 7, 9, 10, 14, 15, 17, 18;
 
 sub expect {
- my ($pkg, $file) = @_;
- $file = $file ? quotemeta $file : '\(eval \d+\)';
- qr/^warn:Indirect call of method "new" on object "$pkg" at $file line \d+/;
+ my ($obj, $file, $prefix) = @_;
+ $obj    = quotemeta $obj;
+ $file   = $file           ? quotemeta $file   : '\(eval \d+\)';
+ $prefix = defined $prefix ? quotemeta $prefix : 'warn:';
+ qr/^${prefix}Indirect call of method "new" on object "$obj" at $file line \d+/;
 }
 
 {
@@ -191,6 +193,31 @@ like $err, qr/^Can't locate object method "new" via package "X"/,
  @w = ();
  indirect::TestRequired6::baz();
  is_deeply \@w, [ ], 'indirect syntax in eval in sub';
+}
+
+{
+ local $@;
+ eval { require indirect::Test2 };
+ is $@, '', 'direct call in string is not fooled by newlines';
+}
+
+{
+ local $@;
+ eval { require indirect::Test3 };
+ like $@, expect('$x', 't/lib/indirect/Test3.pm', ''),
+          'indirect call in string is not fooled by newlines';
+}
+
+{
+ local $@;
+ eval { require indirect::Test4 };
+ is $@, '', 'direct call in string is not fooled by more newlines';
+}
+
+{
+ local $@;
+ eval { require indirect::Test5 };
+ is $@, '', 'direct call in sort in string is not fooled by newlines';
 }
 
 __DATA__

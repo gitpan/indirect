@@ -75,6 +75,9 @@
 # ifndef PL_oldbufptr
 #  define PL_oldbufptr PL_parser->oldbufptr
 # endif
+# ifndef PL_lex_inwhat
+#  define PL_lex_inwhat PL_parser->lex_inwhat
+# endif
 #else
 # ifndef PL_linestr
 #  define PL_linestr PL_Ilinestr
@@ -84,6 +87,9 @@
 # endif
 # ifndef PL_oldbufptr
 #  define PL_oldbufptr PL_Ioldbufptr
+# endif
+# ifndef PL_lex_inwhat
+#  define PL_lex_inwhat PL_Ilex_inwhat
 # endif
 #endif
 
@@ -568,14 +574,23 @@ STATIC int indirect_find(pTHX_ SV *name_sv, const char *line_bufptr, STRLEN *nam
 
  t = line;
  u = t;
- while (t <= p) {
-  STRLEN i = indirect_nextline(t, line_len);
-  if (i >= line_len)
-   break;
-  u         = t;
-  t        += i;
-  line_len -= i;
+
+ /* If we're inside a string-like environment, we don't need to be smart for
+  * finding the positions of the tokens : as the line number will always be
+  * the line where the string began (or at least I hope so), and the line
+  * buffer points to the beginning of the string (likewise), we can just take
+  * the offset in this string as the position. */
+ if (!PL_lex_inwhat) {
+  while (t <= p) {
+   STRLEN i = indirect_nextline(t, line_len);
+   if (i >= line_len)
+    break;
+   u         = t;
+   t        += i;
+   line_len -= i;
+  }
  }
+
  *name_pos = p - u;
 
  return 1;
