@@ -4,7 +4,7 @@
       "Vincent Pit <perl@profvince.com>"
    ],
    "dynamic_config" : 1,
-   "generated_by" : "ExtUtils::MakeMaker version 6.64, CPAN::Meta::Converter version 2.120921",
+   "generated_by" : "ExtUtils::MakeMaker version 6.66, CPAN::Meta::Converter version 2.130880",
    "license" : [
       "perl_5"
    ],
@@ -46,7 +46,7 @@
    "release_status" : "stable",
    "resources" : {
       "bugtracker" : {
-         "web" : "http://rt.cpan.org/NoAuth/ReportBug.html?Queue=indirect"
+         "web" : "http://rt.cpan.org/Dist/Display.html?Name=indirect"
       },
       "homepage" : "http://search.cpan.org/dist/indirect/",
       "license" : [
@@ -56,5 +56,5 @@
          "url" : "http://git.profvince.com/?p=perl%2Fmodules%2Findirect.git"
       }
    },
-   "version" : "0.29"
+   "version" : "0.30"
 }

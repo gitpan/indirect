@@ -523,27 +523,12 @@ STATIC void indirect_map_delete(pTHX_ const OP *o) {
 
 /* --- Check functions ----------------------------------------------------- */
 
-STATIC STRLEN indirect_nextline(const char *s, STRLEN len) {
- STRLEN i;
-
- for (i = 0; i < len; ++i) {
-  if (s[i] == '\n') {
-   ++i;
-   while (i < len && s[i] == '\r')
-    ++i;
-   break;
-  }
- }
-
- return i;
-}
-
 STATIC int indirect_find(pTHX_ SV *name_sv, const char *line_bufptr, STRLEN *name_pos) {
 #define indirect_find(NSV, LBP, NP) indirect_find(aTHX_ (NSV), (LBP), (NP))
  STRLEN      name_len, line_len;
  const char *name, *name_end;
  const char *line, *line_end;
- const char *p, *t, *u;
+ const char *p;
 
  line     = SvPV_const(PL_linestr, line_len);
  line_end = line + line_len;
@@ -572,26 +557,7 @@ STATIC int indirect_find(pTHX_ SV *name_sv, const char *line_bufptr, STRLEN *nam
    ++p;
  }
 
- t = line;
- u = t;
-
- /* If we're inside a string-like environment, we don't need to be smart for
-  * finding the positions of the tokens : as the line number will always be
-  * the line where the string began (or at least I hope so), and the line
-  * buffer points to the beginning of the string (likewise), we can just take
-  * the offset in this string as the position. */
- if (!PL_lex_inwhat) {
-  while (t <= p) {
-   STRLEN i = indirect_nextline(t, line_len);
-   if (i >= line_len)
-    break;
-   u         = t;
-   t        += i;
-   line_len -= i;
-  }
- }
-
- *name_pos = p - u;
+ *name_pos = p - line;
 
  return 1;
 }

@@ -1,5 +1,14 @@
 Revision history for indirect
 
+0.30    2013-05-16 15:55 UTC
+        + Fix : [RT #83806] : false positives with Devel::Declare
+                [RT #83839] : false positive using ? : syntax
+                Thanks Andrew Main for the patch.
+                However, please note that the reason this patch seems to fix
+                thinks has not been explained.
+        + Fix : [RT #84649] : incorrect RT link in metadata
+                Thanks Karen Etheridge for reporting.
+
 0.29    2013-03-05 01:30 UTC
         + Fix : [RT #83659] : false positives
                 Proper method calls in string-like environments (like

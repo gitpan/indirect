@@ -9,7 +9,7 @@ package main;
 use strict;
 use warnings;
 
-use Test::More tests => 109 * 8 + 10;
+use Test::More tests => 112 * 8 + 10;
 
 BEGIN { delete $ENV{PERL_INDIRECT_PM_DISABLE} }
 
@@ -426,3 +426,18 @@ my @stuff = sort Hlagh
 ####
 my @stuff = sort Hlagh
                         ->new;
+####
+sub {
+ my $self = shift;
+ return $self->new ? $self : undef;
+}
+####
+sub {
+ my $self = shift;
+ return $self ? $self->new : undef;
+}
+####
+sub {
+ my $self = shift;
+ return $_[0] ? undef : $self->new;
+}

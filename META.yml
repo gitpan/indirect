@@ -12,7 +12,7 @@ configure_requires:
   Config: 0
   ExtUtils::MakeMaker: 0
 dynamic_config: 1
-generated_by: 'ExtUtils::MakeMaker version 6.64, CPAN::Meta::Converter version 2.120921'
+generated_by: 'ExtUtils::MakeMaker version 6.66, CPAN::Meta::Converter version 2.130880'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -27,8 +27,8 @@ requires:
   XSLoader: 0
   perl: 5.008001
 resources:
-  bugtracker: http://rt.cpan.org/NoAuth/ReportBug.html?Queue=indirect
+  bugtracker: http://rt.cpan.org/Dist/Display.html?Name=indirect
   homepage: http://search.cpan.org/dist/indirect/
   license: http://dev.perl.org/licenses/
   repository: http://git.profvince.com/?p=perl%2Fmodules%2Findirect.git
-version: 0.29
+version: 0.30
