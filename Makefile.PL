@@ -1,4 +1,4 @@
-use 5.008001;
+use 5.008_001;
 
 use strict;
 use warnings;

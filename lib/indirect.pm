@@ -1,6 +1,6 @@
 package indirect;
 
-use 5.008001;
+use 5.008_001;
 
 use strict;
 use warnings;
@@ -11,13 +11,13 @@ indirect - Lexically warn about using the indirect method call syntax.
 
 =head1 VERSION
 
-Version 0.30
+Version 0.31
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.30';
+ $VERSION = '0.31';
 }
 
 =head1 SYNOPSIS
@@ -260,7 +260,7 @@ L<perl> 5.8.1.
 A C compiler.
 This module may happen to build with a C++ compiler as well, but don't rely on it, as no guarantee is made in this regard.
 
-L<Carp> (standard since perl 5), L<XSLoader> (since perl 5.006).
+L<Carp> (standard since perl 5), L<XSLoader> (since perl 5.6.0).
 
 =head1 AUTHOR
 

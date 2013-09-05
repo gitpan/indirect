@@ -1,5 +1,12 @@
 Revision history for indirect
 
+0.31    2013-09-05 16:45 UTC
+        + Fix : [RT #88428] : no indirect in eval can trigger for direct calls
+                on __PACKAGE__
+                Thanks Graham Knop for reporting.
+        + Tst : Author tests are no longer bundled with this distribution.
+                They are only made available to authors in the git repository.
+
 0.30    2013-05-16 15:55 UTC
         + Fix : [RT #83806] : false positives with Devel::Declare
                 [RT #83839] : false positive using ? : syntax

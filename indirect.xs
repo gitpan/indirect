@@ -576,6 +576,25 @@ STATIC OP *indirect_ck_const(pTHX_ OP *o) {
    STRLEN pos;
 
    if (indirect_find(sv, PL_oldbufptr, &pos)) {
+    STRLEN len;
+
+    /* If the constant is equal to the current package name, try to look for
+     * a "__PACKAGE__" coming before what we got. We only need to check this
+     * when we already had a match because __PACKAGE__ can only appear in
+     * direct method calls ("new __PACKAGE__" is a syntax error). */
+    len = SvCUR(sv);
+    if (len == HvNAMELEN_get(PL_curstash)
+        && memcmp(SvPVX(sv), HvNAME_get(PL_curstash), len) == 0) {
+     STRLEN pos_pkg;
+     SV    *pkg = sv_newmortal();
+     sv_setpvn(pkg, "__PACKAGE__", sizeof("__PACKAGE__")-1);
+
+     if (indirect_find(pkg, PL_oldbufptr, &pos_pkg) && pos_pkg < pos) {
+      sv  = pkg;
+      pos = pos_pkg;
+     }
+    }
+
     indirect_map_store(o, pos, sv, CopLINE(&PL_compiling));
     return o;
    }

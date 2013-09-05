@@ -1,6 +1,6 @@
 #!perl -T
 
-package Dongs;
+package NotEmpty;
 
 sub new;
 
@@ -40,9 +40,12 @@ sub try {
 
 SKIP:
   {
-   skip "$_: $skip" => 9 if eval $skip;
+   skip "$_: $skip" => 9 if do { local $@; eval $skip };
 
    {
+    local $_ = $_;
+    s/Pkg/Empty/g;
+
     try "return; $prefix; use indirect; $_";
     is $@,     '', "use indirect: $_";
     is @warns, 0,  'correct number of reports';
@@ -54,7 +57,7 @@ SKIP:
 
    {
     local $_ = $_;
-    s/Hlagh/Dongs/g;
+    s/Pkg/NotEmpty/g;
 
     try "return; $prefix; use indirect; $_";
     is $@,     '', "use indirect, defined: $_";
@@ -63,7 +66,7 @@ SKIP:
     try "return; $prefix; no indirect; $_";
     is $@,          '', "use indirect, defined: $_";
     is @warns,      1,  'correct number of reports';
-    like $warns[0], qr/^Indirect call of method "meh" on object "Dongs" at \(eval \d+\) line \d+/, 'report 0 is correct';
+    like $warns[0], qr/^Indirect call of method "meh" on object "NotEmpty" at \(eval \d+\) line \d+/, 'report 0 is correct';
    }
   }
  }
@@ -71,8 +74,8 @@ SKIP:
 
 __DATA__
 
-meh Hlagh->new;
+meh Pkg->new;
 ####
-meh Hlagh->new();
+meh Pkg->new();
 ####
-meh Hlagh->new, "Wut";
+meh Pkg->new, "Wut";

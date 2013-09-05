@@ -1,6 +1,6 @@
 #!perl -T
 
-package Dongs;
+package NotEmpty;
 
 sub new;
 
@@ -11,8 +11,8 @@ use warnings;
 
 my ($tests, $reports);
 BEGIN {
- $tests   = 82;
- $reports = 94;
+ $tests   = 88;
+ $reports = 100;
 }
 
 use Test::More tests => 3 * (4 * $tests + $reports) + 4;
@@ -62,12 +62,18 @@ sub try {
 
 SKIP:
   {
-   my ($code, $expected) = split /^-{4,}$/m, $_, 2;
-   my @expected = expect($expected);
-
-   skip "$_: $skip" => 3 * (4 + @expected) if eval $skip;
+   if (do { local $@; eval $skip }) {
+    my ($code, $expected) = split /^-{4,}$/m, $_, 2;
+    my @expected = expect($expected);
+    skip "$_: $skip" => 3 * (4 + @expected);
+   }
 
    {
+    local $_ = $_;
+    s/Pkg/Empty/g;
+    my ($code, $expected) = split /^-{4,}$/m, $_, 2;
+    my @expected = expect($expected);
+
     try "return; $prefix; use indirect; $code";
     is $@,     '', "use indirect: $code";
     is @warns, 0,  'correct number of reports';
@@ -82,7 +88,7 @@ SKIP:
 
    {
     local $_ = $_;
-    s/Hlagh/Dongs/g;
+    s/Pkg/NotEmpty/g;
     my ($code, $expected) = split /^-{4,}$/m, $_, 2;
     my @expected = expect($expected);
 
@@ -100,9 +106,12 @@ SKIP:
 
 SKIP:
    {
+    local $_ = $_;
+    s/Pkg/Empty/g;
+    my ($code, $expected) = split /^-{4,}$/m, $_, 2;
+    my @expected = expect($expected);
     skip 'No space tests on perl 5.11' => 4 + @expected
                                               if "$]" >= 5.011 and "$]" < 5.012;
-    my $code = $code;
     $code =~ s/\$/\$ \n\t /g;
 
     try "return; $prefix; use indirect; $code";
@@ -124,80 +133,80 @@ eval {
  my @warns;
  {
   local $SIG{__WARN__} = sub { push @warns, @_ };
-  eval "return; no indirect 'hlagh'; \$obj = new Hlagh1;";
+  eval "return; no indirect 'whatever'; \$obj = new Pkg1;";
  }
- is        $@,      '',  'no indirect "hlagh" didn\'t croak';
+ is        $@,      '',  'no indirect "whatever" didn\'t croak';
  is        @warns,  1,   'only one warning';
  my $warn = shift @warns;
- like      $warn,   qr/^Indirect call of method "new" on object "Hlagh1"/,
-                         'no indirect "hlagh" enables the pragma';
+ like      $warn,   qr/^Indirect call of method "new" on object "Pkg1"/,
+                         'no indirect "whatever" enables the pragma';
  is_deeply \@warns, [ ], 'nothing more';
 }
 
 __DATA__
 
-$obj = new Hlagh;
+$obj = new Pkg;
 ----
-[ 'new', 'Hlagh' ]
+[ 'new', 'Pkg' ]
 ####
-$obj = new Hlagh if 0;
+$obj = new Pkg if 0;
 ----
-[ 'new', 'Hlagh' ]
+[ 'new', 'Pkg' ]
 ####
-$obj = new Hlagh();
+$obj = new Pkg();
 ----
-[ 'new', 'Hlagh' ]
+[ 'new', 'Pkg' ]
 ####
-$obj = new Hlagh(1);
+$obj = new Pkg(1);
 ----
-[ 'new', 'Hlagh' ]
+[ 'new', 'Pkg' ]
 ####
-$obj = new Hlagh(1, 2);
+$obj = new Pkg(1, 2);
 ----
-[ 'new', 'Hlagh' ]
+[ 'new', 'Pkg' ]
 ####
-$obj = new        Hlagh            ;
+$obj = new        Pkg            ;
 ----
-[ 'new', 'Hlagh' ]
+[ 'new', 'Pkg' ]
 ####
-$obj = new        Hlagh     (      )      ;
+$obj = new        Pkg     (      )      ;
 ----
-[ 'new', 'Hlagh' ]
+[ 'new', 'Pkg' ]
 ####
-$obj = new        Hlagh     (      1        )     ;
+$obj = new        Pkg     (      1        )     ;
 ----
-[ 'new', 'Hlagh' ]
+[ 'new', 'Pkg' ]
 ####
-$obj = new        Hlagh     (      1        ,       2        )     ;
+$obj = new        Pkg     (      1        ,       2        )     ;
 ----
-[ 'new', 'Hlagh' ]
+[ 'new', 'Pkg' ]
 ####
 $obj = new    
-                      Hlagh		
+                      Pkg		
         ;
 ----
-[ 'new', 'Hlagh' ]
+[ 'new', 'Pkg' ]
 ####
 $obj = new   
-                                       Hlagh     (    
+                                       Pkg     (    
                   )      ;
 ----
-[ 'new', 'Hlagh' ]
+[ 'new', 'Pkg' ]
 ####
 $obj =
               new    
-    Hlagh     (      1   
+    Pkg     (      1   
             )     ;
 ----
-[ 'new', 'Hlagh' ]
+[ 'new', 'Pkg' ]
 ####
 $obj =
 new      
-Hlagh    
+Pkg    
                    (      1        ,  
                 2        )     ;
 ----
-[ 'new', 'Hlagh' ]
+[ 'new', 'Pkg' ]
 ####
 $obj = new $x;
 ----
@@ -327,25 +336,25 @@ meh $sploosh::sploosh;
 ----
 [ 'meh', '$sploosh::sploosh' ]
 ####
-new Hlagh->wut;
+new Pkg->wut;
 ----
-[ 'new', 'Hlagh' ]
+[ 'new', 'Pkg' ]
 ####
-new Hlagh->wut();
+new Pkg->wut();
 ----
-[ 'new', 'Hlagh' ]
+[ 'new', 'Pkg' ]
 ####
-new Hlagh->wut, "Wut";
+new Pkg->wut, "Wut";
 ----
-[ 'new', 'Hlagh' ]
+[ 'new', 'Pkg' ]
 ####
-$obj = HlaghHlagh Hlagh;
+$obj = PkgPkg Pkg;
 ----
-[ 'HlaghHlagh', 'Hlagh' ]
+[ 'PkgPkg', 'Pkg' ]
 ####
-$obj = HlaghHlagh Hlagh; # HlaghHlagh Hlagh
+$obj = PkgPkg Pkg; # PkgPkg Pkg
 ----
-[ 'HlaghHlagh', 'Hlagh' ]
+[ 'PkgPkg', 'Pkg' ]
 ####
 $obj = new newnew;
 ----
@@ -363,21 +372,21 @@ $obj = feh feh; # feh feh
 ----
 [ 'feh', 'feh' ]
 ####
-new Hlagh (meh $x)
+new Pkg (meh $x)
 ----
-[ 'meh', '$x' ], [ 'new', 'Hlagh' ]
+[ 'meh', '$x' ], [ 'new', 'Pkg' ]
 ####
-Hlagh->new(meh $x)
+Pkg->new(meh $x)
 ----
 [ 'meh', '$x' ]
 ####
-$obj = "apple ${\(new Hlagh)} pear"
+$obj = "apple ${\(new Pkg)} pear"
 ----
-[ 'new', 'Hlagh' ]
+[ 'new', 'Pkg' ]
 ####
-$obj = "apple @{[new Hlagh]} pear"
+$obj = "apple @{[new Pkg]} pear"
 ----
-[ 'new', 'Hlagh' ]
+[ 'new', 'Pkg' ]
 ####
 $obj = "apple ${\(new $x)} pear"
 ----
@@ -403,13 +412,13 @@ $obj = "apple @{[new $x qq|@{[stuff $y]}|]} pear"
 ----
 [ 'stuff', '$y' ], [ 'new', '$x' ]
 #### # local $_ = "foo";
-s/foo/return; new Hlagh/e;
+s/foo/return; new Pkg/e;
 ----
-[ 'new', 'Hlagh' ]
+[ 'new', 'Pkg' ]
 #### # local $_ = "bar";
-s/foo/return; new Hlagh/e;
+s/foo/return; new Pkg/e;
 ----
-[ 'new', 'Hlagh' ]
+[ 'new', 'Pkg' ]
 #### # local $_ = "foo";
 s/foo/return; new $x/e;
 ----
@@ -427,9 +436,9 @@ s/foo/return; new $y/e;
 ----
 [ 'new', '$y' ]
 ####
-"foo" =~ /(?{new Hlagh})/;
+"foo" =~ /(?{new Pkg})/;
 ----
-[ 'new', 'Hlagh' ]
+[ 'new', 'Pkg' ]
 ####
 "foo" =~ /(?{new $x})/;
 ----
@@ -439,9 +448,9 @@ s/foo/return; new $y/e;
 ----
 [ 'new', '$y' ]
 ####
-"foo" =~ /(??{new Hlagh})/;
+"foo" =~ /(??{new Pkg})/;
 ----
-[ 'new', 'Hlagh' ]
+[ 'new', 'Pkg' ]
 ####
 "foo" =~ /(??{new $x})/;
 ----
@@ -468,15 +477,15 @@ meh {
 ----
 [ 'meh', '{' ]
 ####
-meh { new Hlagh; 1; };
+meh { new Pkg; 1; };
 ----
-[ 'new', 'Hlagh' ], [ 'meh', '{' ]
+[ 'new', 'Pkg' ], [ 'meh', '{' ]
 ####
 meh { feh $x; 1; };
 ----
 [ 'feh', '$x' ], [ 'meh', '{' ]
 ####
-meh { feh $x; use indirect; new Hlagh; 1; };
+meh { feh $x; use indirect; new Pkg; 1; };
 ----
 [ 'feh', '$x' ], [ 'meh', '{' ]
 ####
@@ -484,10 +493,40 @@ meh { feh $y; 1; };
 ----
 [ 'feh', '$y' ], [ 'meh', '{' ]
 ####
-meh { feh $x; 1; } new Hlagh, feh $y;
+meh { feh $x; 1; } new Pkg, feh $y;
 ----
-[ 'feh', '$x' ], [ 'new', 'Hlagh' ], [ 'feh', '$y' ], [ 'meh', '{' ]
+[ 'feh', '$x' ], [ 'new', 'Pkg' ], [ 'feh', '$y' ], [ 'meh', '{' ]
 ####
 $obj = "apple @{[new { feh $x; meh $y; 1 }]} pear"
 ----
 [ 'feh', '$x' ], [ 'meh', '$y' ], [ 'new', '{' ]
+####
+package __PACKAGE_;
+new __PACKAGE_;
+----
+[ 'new', '__PACKAGE_' ]
+####
+package __PACKAGE___;
+new __PACKAGE___;
+----
+[ 'new', '__PACKAGE___' ]
+####
+package Hurp;
+new { __PACKAGE__ }; # Hurp
+----
+[ 'new', '{' ]
+####
+package __PACKAGE_;
+new { __PACKAGE__ };
+----
+[ 'new', '{' ]
+####
+package __PACKAGE__;
+new { __PACKAGE__ };
+----
+[ 'new', '{' ]
+####
+package __PACKAGE___;
+new { __PACKAGE__ };
+----
+[ 'new', '{' ]

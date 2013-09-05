@@ -75,7 +75,7 @@ sub expect {
   }
  }
  is $@, '', "no indirect; eval 'my \$x = new Bar'";
- if ("$]" < 5.009005) {
+ if ("$]" < 5.009_005) {
   is   @w,   0,              'no warnings caught';
   pass 'placeholder';
  } else {
@@ -87,7 +87,7 @@ sub expect {
 
 SKIP: {
  skip 'The pragma doesn\'t propagte into eval STRING before perl 5.10' => 2
-                                                             if "$]" < 5.009005;
+                                                            if "$]" < 5.009_005;
  my @w;
  my $test = sub { eval 'return; new XYZ' };
  {
@@ -118,13 +118,13 @@ SKIP: {
   eval "return; no indirect; use indirect::TestRequired2; my \$x = new Bar;";
  }
  is   $@, '', 'second require test doesn\'t croak prematurely';
- @w = grep !/^warn:Attempt\s+to\s+free\s+unreferenced/, @w if "$]" <= 5.008003;
+ @w = grep !/^warn:Attempt\s+to\s+free\s+unreferenced/, @w if "$]" <= 5.008_003;
  my $w = shift @w;
  like $w, expect('Baz', 't/lib/indirect/TestRequired2.pm'),
                                      'second require test caught error for Baz';
  SKIP: {
   skip 'The pragma doesn\'t propagte into eval STRING before perl 5.10' => 1
-                                                             if "$]" < 5.009005;
+                                                            if "$]" < 5.009_005;
   $w = shift @w;
   like $w, expect('Blech'), 'second require test caught error for Blech';
  }
@@ -148,7 +148,7 @@ SKIP: {
    new indirect::TestRequired3Z;
   }
  TESTREQUIRED3
- @w = grep !/^warn:Attempt\s+to\s+free\s+unreferenced/, @w if "$]" <= 5.008003;
+ @w = grep !/^warn:Attempt\s+to\s+free\s+unreferenced/, @w if "$]" <= 5.008_003;
  is        $@,          '',
            "pragma leak when reusing callback test doesn't croak prematurely";
  is_deeply \@w,         [ ],

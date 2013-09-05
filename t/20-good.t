@@ -1,6 +1,6 @@
 #!perl -T
 
-package Dongs;
+package NotEmpty;
 
 sub new;
 
@@ -9,7 +9,7 @@ package main;
 use strict;
 use warnings;
 
-use Test::More tests => 112 * 8 + 10;
+use Test::More tests => 119 * 8 + 10;
 
 BEGIN { delete $ENV{PERL_INDIRECT_PM_DISABLE} }
 
@@ -46,6 +46,9 @@ SKIP:
    skip "$_: $skip" => 8 if eval $skip;
 
    {
+    local $_ = $_;
+    s/Pkg/Empty/g;
+
     try "return; $prefix; use indirect; $_";
     is $@,     '', "use indirect: $_";
     is @warns, 0,  'no reports';
@@ -57,7 +60,7 @@ SKIP:
 
    {
     local $_ = $_;
-    s/Hlagh/Dongs/g;
+    s/Pkg/NotEmpty/g;
 
     try "return; $prefix; use indirect; $_";
     is $@,     '', "use indirect, defined: $_";
@@ -165,37 +168,37 @@ SKIP:
 
 __DATA__
 
-$obj = Hlagh->new;
+$obj = Pkg->new;
 ####
-$obj = Hlagh->new();
+$obj = Pkg->new();
 ####
-$obj = Hlagh->new(1);
+$obj = Pkg->new(1);
 ####
-$obj = Hlagh->new(q{foo}, bar => $obj);
+$obj = Pkg->new(q{foo}, bar => $obj);
 ####
-$obj = Hlagh   ->   new   ;
+$obj = Pkg   ->   new   ;
 ####
-$obj = Hlagh   ->   new   (   )   ;
+$obj = Pkg   ->   new   (   )   ;
 ####
-$obj = Hlagh   ->   new   (   1   )   ;
+$obj = Pkg   ->   new   (   1   )   ;
 ####
-$obj = Hlagh   ->   new   (   'foo'   ,   bar =>   $obj   );
+$obj = Pkg   ->   new   (   'foo'   ,   bar =>   $obj   );
 ####
-$obj = Hlagh
+$obj = Pkg
             ->
                           new   ;
 ####
-$obj = Hlagh  
+$obj = Pkg  
 
       ->   
 new   ( 
  )   ;
 ####
-$obj = Hlagh
+$obj = Pkg
                                        ->   new   ( 
                1   )   ;
 ####
-$obj = Hlagh   ->
+$obj = Pkg   ->
                               new   (   "foo"
   ,    bar     
                =>        $obj       );
@@ -208,17 +211,17 @@ $obj = new->newnew;
 ####
 $obj = newnew->new;
 ####
-$obj = Hlagh->$cb;
+$obj = Pkg->$cb;
 ####
-$obj = Hlagh->$cb();
+$obj = Pkg->$cb();
 ####
-$obj = Hlagh->$cb($pkg);
+$obj = Pkg->$cb($pkg);
 ####
-$obj = Hlagh->$cb(sub { 'foo' },  bar => $obj);
+$obj = Pkg->$cb(sub { 'foo' },  bar => $obj);
 ####
-$obj = Hlagh->$meth;
+$obj = Pkg->$meth;
 ####
-$obj =   Hlagh
+$obj =   Pkg
    -> 
           $meth   ( 1,   2   );
 ####
@@ -299,11 +302,11 @@ print $x "oh hai\n";
 ####
 print $y;
 ####
-print $y "dongs\n";
+print $y "hello thar\n";
 #### "$]" < 5.010 # use feature 'state'; state $z
 print $z;
 #### "$]" < 5.010 # use feature 'state'; state $z
-print $z "hlagh\n";
+print $z "lolno\n";
 ####
 print STDOUT "bananananananana\n";
 ####
@@ -333,17 +336,17 @@ $obj = "apple ${\($y->$meth)} pear"
 ####
 $obj = "apple @{[$y->$meth]} pear"
 #### # local $_ = "foo";
-s/foo/return; Hlagh->new/e;
+s/foo/return; Pkg->new/e;
 #### # local $_ = "bar";
-s/foo/return; Hlagh->new/e;
+s/foo/return; Pkg->new/e;
 #### # local $_ = "foo";
-s/foo/return; Hlagh->$cb/e;
+s/foo/return; Pkg->$cb/e;
 #### # local $_ = "bar";
-s/foo/return; Hlagh->$cb/e;
+s/foo/return; Pkg->$cb/e;
 #### # local $_ = "foo";
-s/foo/return; Hlagh->$meth/e;
+s/foo/return; Pkg->$meth/e;
 #### # local $_ = "bar";
-s/foo/return; Hlagh->$meth/e;
+s/foo/return; Pkg->$meth/e;
 #### # local $_ = "foo";
 s/foo/return; $x->new/e;
 #### # local $_ = "bar";
@@ -369,11 +372,11 @@ s/foo/return; $y->$meth/e;
 #### # local $_ = "bar";
 s/foo/return; $y->$meth/e;
 ####
-"foo" =~ /(?{Hlagh->new})/;
+"foo" =~ /(?{Pkg->new})/;
 ####
-"foo" =~ /(?{Hlagh->$cb})/;
+"foo" =~ /(?{Pkg->$cb})/;
 ####
-"foo" =~ /(?{Hlagh->$meth})/;
+"foo" =~ /(?{Pkg->$meth})/;
 ####
 "foo" =~ /(?{$x->new})/;
 ####
@@ -403,28 +406,28 @@ zap { 1; 1; };
 ####
 zap { zap { }; 1; };
 ####
-my @stuff = sort Hlagh
+my @stuff = sort Pkg
      ->new;
 ####
-my @stuff = sort Hlagh
+my @stuff = sort Pkg
               ->new;
 ####
-my @stuff = sort Hlagh
+my @stuff = sort Pkg
                ->new;
 ####
-my @stuff = sort Hlagh
+my @stuff = sort Pkg
                 ->new;
 ####
-my @stuff = sort Hlagh
+my @stuff = sort Pkg
                  ->new;
 ####
-my @stuff = sort Hlagh
+my @stuff = sort Pkg
                    ->new;
 ####
-my @stuff = sort Hlagh
+my @stuff = sort Pkg
                      ->new;
 ####
-my @stuff = sort Hlagh
+my @stuff = sort Pkg
                         ->new;
 ####
 sub {
@@ -441,3 +444,25 @@ sub {
  my $self = shift;
  return $_[0] ? undef : $self->new;
 }
+####
+package Hurp;
+__PACKAGE__->new;
+####
+package Hurp;
+__PACKAGE__->new # Hurp
+####
+package Hurp;
+__PACKAGE__->new;
+# Hurp
+####
+package __PACKAGE_;
+__PACKAGE__->new # __PACKAGE_
+####
+package __PACKAGE_;
+__PACKAGE_->new # __PACKAGE__
+####
+package __PACKAGE___;
+__PACKAGE__->new # __PACKAGE___
+####
+package __PACKAGE___;
+__PACKAGE___->new # __PACKAGE__
