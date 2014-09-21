@@ -3,23 +3,12 @@
 use strict;
 use warnings;
 
-use Test::More tests => 3;
+use Test::More tests => 4;
 
 use lib 't/lib';
 use VPIT::TestHelpers;
 
 BEGIN { delete $ENV{PERL_INDIRECT_PM_DISABLE} }
-
-sub run_perl {
- my $code = shift;
-
- my ($SystemRoot, $PATH) = @ENV{qw<SystemRoot PATH>};
- local %ENV;
- $ENV{SystemRoot} = $SystemRoot if $^O eq 'MSWin32' and defined $SystemRoot;
- $ENV{PATH}       = $PATH       if $^O eq 'cygwin'  and defined $PATH;
-
- system { $^X } $^X, '-T', map("-I$_", @INC), '-e', $code;
-}
 
 {
  my $status = run_perl 'no indirect; qq{a\x{100}b} =~ /\A[\x00-\x7f]*\z/;';
@@ -38,4 +27,16 @@ SKIP:
  load_or_skip('Devel::CallParser', undef, undef, 1);
  my $status = run_perl "use Devel::CallParser (); no indirect; sub ok { } ok 1";
  is $status, 0, 'indirect is not getting upset by Devel::CallParser';
+}
+
+SKIP:
+{
+ my $has_package_empty = do {
+  local $@;
+  eval 'no warnings "deprecated"; package; 1'
+ };
+ skip 'Empty package only available on perl 5.8.x and below' => 1
+                                                      unless $has_package_empty;
+ my $status = run_perl 'no indirect hook => sub { }; exit 0; package; new X;';
+ is $status, 0, 'indirect does not croak while package empty is in use';
 }

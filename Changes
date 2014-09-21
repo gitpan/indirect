@@ -1,5 +1,14 @@
 Revision history for indirect
 
+0.32    2014-09-21 20:15 UTC
+        + Add : Support for the PERL_OP_PARENT optional feature introduced in
+                perl 5.21.2.
+        + Fix : [RT #92806] : Tests that use run_perl() fail on Android
+                Thanks Brian Fraser for the patch.
+        + Fix : indirect constructs will no longer segfault while inside
+                the empty package on perl 5.8.x. This fix may also prevent
+                some segfaults during global destruction.
+
 0.31    2013-09-05 16:45 UTC
         + Fix : [RT #88428] : no indirect in eval can trigger for direct calls
                 on __PACKAGE__

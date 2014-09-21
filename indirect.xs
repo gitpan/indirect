@@ -63,6 +63,10 @@
 # define HvNAMELEN_get(H) strlen(HvNAME_get(H))
 #endif
 
+#ifndef OP_SIBLING
+# define OP_SIBLING(O) ((O)->op_sibling)
+#endif
+
 #define I_HAS_PERL(R, V, S) (PERL_REVISION > (R) || (PERL_REVISION == (R) && (PERL_VERSION > (V) || (PERL_VERSION == (V) && (PERL_SUBVERSION >= (S))))))
 
 #if I_HAS_PERL(5, 10, 0) || defined(PL_parser)
@@ -583,7 +587,8 @@ STATIC OP *indirect_ck_const(pTHX_ OP *o) {
      * when we already had a match because __PACKAGE__ can only appear in
      * direct method calls ("new __PACKAGE__" is a syntax error). */
     len = SvCUR(sv);
-    if (len == HvNAMELEN_get(PL_curstash)
+    if (PL_curstash
+        && len == (STRLEN) HvNAMELEN_get(PL_curstash)
         && memcmp(SvPVX(sv), HvNAME_get(PL_curstash), len) == 0) {
      STRLEN pos_pkg;
      SV    *pkg = sv_newmortal();
@@ -822,7 +827,7 @@ STATIC OP *indirect_ck_entersub(pTHX_ OP *o) {
     goto done;
    oop = lop->op_first;
   } while (oop->op_type != OP_PUSHMARK);
-  oop = oop->op_sibling;
+  oop = OP_SIBLING(oop);
   mop = lop->op_last;
 
   if (!oop)
