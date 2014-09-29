@@ -3,7 +3,9 @@
 use strict;
 use warnings;
 
-use Test::More tests => 4;
+use Config;
+
+use Test::More tests => 6;
 
 use lib 't/lib';
 use VPIT::TestHelpers;
@@ -39,4 +41,24 @@ SKIP:
                                                       unless $has_package_empty;
  my $status = run_perl 'no indirect hook => sub { }; exit 0; package; new X;';
  is $status, 0, 'indirect does not croak while package empty is in use';
+}
+
+my $fork_status;
+if ($Config::Config{d_fork} or $Config::Config{d_pseudofork}) {
+ $fork_status = run_perl 'my $pid = fork; exit 1 unless defined $pid; if ($pid) { waitpid $pid, 0; my $status = $?; exit(($status >> 8) || $status) } else { exit 0 }';
+}
+
+SKIP:
+{
+ my $tests = 2;
+ skip 'fork() or pseudo-forks are required to check END blocks in subprocesses'
+                                          => $tests unless defined $fork_status;
+ skip "Could not even fork a simple process (sample returned $fork_status)"
+                                          => $tests unless $fork_status == 0;
+
+ my $status = run_perl 'require indirect; END { eval q[1] } my $pid = fork; exit 0 unless defined $pid; if ($pid) { waitpid $pid, 0; my $status = $?; exit(($status >> 8) || $status) } else { exit 0 }';
+ is $status, 0, 'indirect and global END blocks executed at the end of a forked process (RT #99083)';
+
+ $status = run_perl 'require indirect; my $pid = fork; exit 0 unless defined $pid; if ($pid) { waitpid $pid, 0; my $status = $?; exit(($status >> 8) || $status) } else { eval q[END { eval q(1) }]; exit 0 }';
+ is $status, 0, 'indirect and local END blocks executed at the end of a forked process';
 }

@@ -7,7 +7,6 @@ README
 indirect.xs
 lib/indirect.pm
 ptable.h
-reap.h
 samples/indirect.pl
 t/00-load.t
 t/10-args.t

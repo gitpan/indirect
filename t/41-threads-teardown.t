@@ -7,7 +7,7 @@ use lib 't/lib';
 use VPIT::TestHelpers;
 use indirect::TestThreads;
 
-use Test::Leaner tests => 1;
+use Test::Leaner tests => 3;
 
 SKIP:
 {
@@ -30,4 +30,37 @@ SKIP:
   exit $code;
  RUN
  is $status, 0, 'loading the pragma in a thread and using it outside doesn\'t segfault';
+}
+
+{
+ my $status = run_perl <<' RUN';
+  use threads;
+  BEGIN { require indirect; }
+  sub X::DESTROY { eval 'no indirect; 1'; exit 1 if $@ }
+  threads->create(sub {
+   my $x = bless { }, 'X';
+   $x->{self} = $x;
+   return;
+  })->join;
+  exit $code;
+ RUN
+ is $status, 0, 'indirect can be loaded in eval STRING during global destruction at the end of a thread';
+}
+
+{
+ my $status = run_perl <<' RUN';
+  use threads;
+  use threads::shared;
+  my $code : shared;
+  $code = 0;
+  no indirect cb => sub { lock $code; ++$code };
+  sub X::DESTROY { eval $_[0]->{code} }
+  threads->create(sub {
+   my $x = bless { code => 'new Z' }, 'X';
+   $x->{self} = $x;
+   return;
+  })->join;
+  exit $code;
+ RUN
+ is $status, 0, 'indirect does not check eval STRING during global destruction at the end of a thread';
 }

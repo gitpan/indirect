@@ -271,67 +271,86 @@ START_MY_CXT
 
 #if I_THREADSAFE
 
-STATIC SV *indirect_clone(pTHX_ SV *sv, tTHX owner) {
-#define indirect_clone(S, O) indirect_clone(aTHX_ (S), (O))
- CLONE_PARAMS  param;
- AV           *stashes = NULL;
- SV           *dupsv;
+typedef struct {
+ ptable *tbl;
+#if I_HAS_PERL(5, 13, 2)
+ CLONE_PARAMS *params;
+#else
+ CLONE_PARAMS params;
+#endif
+} indirect_ptable_clone_ud;
 
- if (!sv)
-  return NULL;
-
- if (SvTYPE(sv) == SVt_PVHV && HvNAME_get(sv))
-  stashes = newAV();
-
- param.stashes    = stashes;
- param.flags      = 0;
- param.proto_perl = owner;
-
- dupsv = sv_dup(sv, &param);
-
- if (stashes) {
-  av_undef(stashes);
-  SvREFCNT_dec(stashes);
- }
-
- return SvREFCNT_inc(dupsv);
-}
+#if I_HAS_PERL(5, 13, 2)
+# define indirect_ptable_clone_ud_init(U, T, O) \
+   (U).tbl    = (T); \
+   (U).params = Perl_clone_params_new((O), aTHX)
+# define indirect_ptable_clone_ud_deinit(U) Perl_clone_params_del((U).params)
+# define indirect_dup_inc(S, U)             SvREFCNT_inc(sv_dup((S), (U)->params))
+#else
+# define indirect_ptable_clone_ud_init(U, T, O) \
+   (U).tbl               = (T);     \
+   (U).params.stashes    = newAV(); \
+   (U).params.flags      = 0;       \
+   (U).params.proto_perl = (O)
+# define indirect_ptable_clone_ud_deinit(U) SvREFCNT_dec((U).params.stashes)
+# define indirect_dup_inc(S, U)             SvREFCNT_inc(sv_dup((S), &((U)->params)))
+#endif
 
 STATIC void indirect_ptable_clone(pTHX_ ptable_ent *ent, void *ud_) {
- my_cxt_t        *ud = ud_;
- indirect_hint_t *h1 = ent->val;
- indirect_hint_t *h2;
-
- if (ud->owner == aTHX)
-  return;
+ indirect_ptable_clone_ud *ud = ud_;
+ indirect_hint_t          *h1 = ent->val;
+ indirect_hint_t          *h2;
 
 #if I_HINT_STRUCT
 
- h2       = PerlMemShared_malloc(sizeof *h2);
- h2->code = indirect_clone(h1->code, ud->owner);
+ h2              = PerlMemShared_malloc(sizeof *h2);
+ h2->code        = indirect_dup_inc(h1->code, ud);
 #if I_WORKAROUND_REQUIRE_PROPAGATION
- h2->require_tag = PTR2IV(indirect_clone(INT2PTR(SV *, h1->require_tag),
-                                         ud->owner));
+ h2->require_tag = PTR2IV(indirect_dup_inc(INT2PTR(SV *, h1->require_tag), ud));
 #endif
 
 #else  /*  I_HINT_STRUCT */
 
- h2 = indirect_clone(h1, ud->owner);
+ h2 = indirect_dup_inc(h1, ud);
 
 #endif /* !I_HINT_STRUCT */
 
  ptable_hints_store(ud->tbl, ent->key, h2);
 }
 
-#include "reap.h"
-
 STATIC void indirect_thread_cleanup(pTHX_ void *ud) {
  dMY_CXT;
 
  SvREFCNT_dec(MY_CXT.global_code);
+ MY_CXT.global_code = NULL;
  ptable_free(MY_CXT.map);
+ MY_CXT.map = NULL;
  ptable_hints_free(MY_CXT.tbl);
+ MY_CXT.tbl = NULL;
 }
+
+STATIC int indirect_endav_free(pTHX_ SV *sv, MAGIC *mg) {
+ SAVEDESTRUCTOR_X(indirect_thread_cleanup, NULL);
+
+ return 0;
+}
+
+STATIC MGVTBL indirect_endav_vtbl = {
+ 0,
+ 0,
+ 0,
+ 0,
+ indirect_endav_free
+#if MGf_COPY
+ , 0
+#endif
+#if MGf_DUP
+ , 0
+#endif
+#if MGf_LOCAL
+ , 0
+#endif
+};
 
 #endif /* I_THREADSAFE */
 
@@ -384,7 +403,13 @@ get_enclosing_cv:
 STATIC SV *indirect_tag(pTHX_ SV *value) {
 #define indirect_tag(V) indirect_tag(aTHX_ (V))
  indirect_hint_t *h;
- SV *code = NULL;
+ SV              *code = NULL;
+#if I_THREADSAFE
+ dMY_CXT;
+
+ if (!MY_CXT.tbl)
+  return newSViv(0);
+#endif /* I_THREADSAFE */
 
  if (SvROK(value)) {
   value = SvRV(value);
@@ -405,13 +430,10 @@ STATIC SV *indirect_tag(pTHX_ SV *value) {
 #endif /* !I_HINT_STRUCT */
 
 #if I_THREADSAFE
- {
-  dMY_CXT;
-  /* We only need for the key to be an unique tag for looking up the value later
-   * Allocated memory provides convenient unique identifiers, so that's why we
-   * use the hint as the key itself. */
-  ptable_hints_store(MY_CXT.tbl, h, h);
- }
+ /* We only need for the key to be an unique tag for looking up the value later
+  * Allocated memory provides convenient unique identifiers, so that's why we
+  * use the hint as the key itself. */
+ ptable_hints_store(MY_CXT.tbl, h, h);
 #endif /* I_THREADSAFE */
 
  return newSViv(PTR2IV(h));
@@ -423,6 +445,11 @@ STATIC SV *indirect_detag(pTHX_ const SV *hint) {
 #if I_THREADSAFE || I_WORKAROUND_REQUIRE_PROPAGATION
  dMY_CXT;
 #endif
+
+#if I_THREADSAFE
+ if (!MY_CXT.tbl)
+  return NULL;
+#endif /* I_THREADSAFE */
 
  h = INT2PTR(indirect_hint_t *, SvIVX(hint));
 #if I_THREADSAFE
@@ -485,6 +512,9 @@ STATIC void indirect_map_store(pTHX_ const OP *o, STRLEN pos, SV *sv, line_t lin
  STRLEN len;
  dMY_CXT;
 
+ /* No need to check for MY_CXT.map != NULL because this code path is always
+  * guarded by indirect_hint(). */
+
  if (!(oi = ptable_fetch(MY_CXT.map, o))) {
   Newx(oi, 1, indirect_op_info_t);
   ptable_store(MY_CXT.map, o, oi);
@@ -515,6 +545,9 @@ STATIC const indirect_op_info_t *indirect_map_fetch(pTHX_ const OP *o) {
 #define indirect_map_fetch(O) indirect_map_fetch(aTHX_ (O))
  dMY_CXT;
 
+ /* No need to check for MY_CXT.map != NULL because this code path is always
+  * guarded by indirect_hint(). */
+
  return ptable_fetch(MY_CXT.map, o);
 }
 
@@ -522,7 +555,8 @@ STATIC void indirect_map_delete(pTHX_ const OP *o) {
 #define indirect_map_delete(O) indirect_map_delete(aTHX_ (O))
  dMY_CXT;
 
- ptable_delete(MY_CXT.map, o);
+ if (MY_CXT.map)
+  ptable_delete(MY_CXT.map, o);
 }
 
 /* --- Check functions ----------------------------------------------------- */
@@ -909,8 +943,10 @@ STATIC void indirect_teardown(pTHX_ void *root) {
  {
   dMY_CXT;
   ptable_free(MY_CXT.map);
+  MY_CXT.map = NULL;
 #if I_THREADSAFE
   ptable_hints_free(MY_CXT.tbl);
+  MY_CXT.tbl = NULL;
 #endif
  }
 
@@ -995,14 +1031,16 @@ PROTOTYPE: DISABLE
 PREINIT:
  ptable *t;
  SV     *global_code_dup;
+ GV     *gv;
 PPCODE:
  {
-  my_cxt_t ud;
+  indirect_ptable_clone_ud ud;
   dMY_CXT;
-  ud.tbl   = t = ptable_new();
-  ud.owner = MY_CXT.owner;
+  t = ptable_new();
+  indirect_ptable_clone_ud_init(ud, t, MY_CXT.owner);
   ptable_walk(MY_CXT.tbl, indirect_ptable_clone, &ud);
-  global_code_dup = indirect_clone(MY_CXT.global_code, MY_CXT.owner);
+  global_code_dup = indirect_dup_inc(MY_CXT.global_code, &ud);
+  indirect_ptable_clone_ud_deinit(ud);
  }
  {
   MY_CXT_CLONE;
@@ -1011,7 +1049,23 @@ PPCODE:
   MY_CXT.owner       = aTHX;
   MY_CXT.global_code = global_code_dup;
  }
- reap(3, indirect_thread_cleanup, NULL);
+ gv = gv_fetchpv(__PACKAGE__ "::_THREAD_CLEANUP", 0, SVt_PVCV);
+ if (gv) {
+  CV *cv = GvCV(gv);
+  if (!PL_endav)
+   PL_endav = newAV();
+  SvREFCNT_inc(cv);
+  if (!av_store(PL_endav, av_len(PL_endav) + 1, (SV *) cv))
+   SvREFCNT_dec(cv);
+  sv_magicext((SV *) PL_endav, NULL, PERL_MAGIC_ext, &indirect_endav_vtbl, NULL, 0);
+ }
+ XSRETURN(0);
+
+void
+_THREAD_CLEANUP(...)
+PROTOTYPE: DISABLE
+PPCODE:
+ indirect_thread_cleanup(aTHX_ NULL);
  XSRETURN(0);
 
 #endif

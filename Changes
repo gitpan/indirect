@@ -1,5 +1,11 @@
 Revision history for indirect
 
+0.33    2014-09-29 20:20 UTC
+        + Fix : [RT #99083] : Breaks eval in an END block in Win32 pseudo-forks.
+                Thanks Graham Knop for reporting.
+        + Fix : Segfaults during global destruction of a thread or a
+                pseudo-fork.
+
 0.32    2014-09-21 20:15 UTC
         + Add : Support for the PERL_OP_PARENT optional feature introduced in
                 perl 5.21.2.
